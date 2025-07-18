@@ -1,1 +1,0 @@
-# Graficas-m-1
