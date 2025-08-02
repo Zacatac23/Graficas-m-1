@@ -1,8 +1,3 @@
-"""
-rasterizer.py
-Motor de renderizado principal con pipeline de shaders
-"""
-
 import math
 import numpy as np
 from PIL import Image

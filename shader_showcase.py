@@ -1,8 +1,3 @@
-"""
-shader_showcase.py
-Sistema de demostración y creación de showcases de shaders
-"""
-
 import os
 import time
 from rasterizer import ShaderRasterizer
