@@ -10,25 +10,25 @@ from shader_showcase import ShaderShowcase
 
 def print_header():
     """Imprimir cabecera del programa"""
-    print("🎨" + "="*58 + "🎨")
+    print("" + "="*58 + "")
     print("    RENDERIZADOR 3D CON SISTEMA DE SHADERS AVANZADO")
-    print("🎨" + "="*58 + "🎨")
+    print("" + "="*58 + "")
     print("\n✨ CARACTERÍSTICAS PRINCIPALES:")
-    print("   🔧 6 Vertex Shaders únicos (deformaciones geométricas)")
-    print("   🎨 7 Fragment Shaders creativos (efectos visuales)")
-    print("   ⚙️  Parámetros configurables en tiempo real")
-    print("   🎬 Múltiples ángulos de cámara y animaciones")
-    print("   📁 Exportación en BMP y PNG")
-    print("   🎭 Combinaciones ilimitadas de efectos")
+    print("   Vertex Shaders únicos (deformaciones geométricas)")
+    print("   Fragment Shaders creativos (efectos visuales)")
+    print("   Parámetros configurables en tiempo real")
+    print("   Múltiples ángulos de cámara y animaciones")
+    print("   Exportación en BMP y PNG")
+    print("   Combinaciones ilimitadas de efectos")
 
 def get_model_files():
     """Solicitar archivos de modelo y textura"""
     print("\n📂 CONFIGURACIÓN DE ARCHIVOS:")
     
     # Archivo OBJ
-    obj_filename = input("📝 Nombre del archivo OBJ: ").strip()
+    obj_filename = input(" Nombre del archivo OBJ: ").strip()
     if not obj_filename:
-        print("⚠️  Usando archivo por defecto: model.obj")
+        print("  Usando archivo por defecto: model.obj")
         obj_filename = "model.obj"
     
     # Verificar existencia del archivo OBJ
@@ -38,27 +38,27 @@ def get_model_files():
     
     # Archivo de textura (opcional)
     texture_filename = None
-    texture_input = input("🖼️  Archivo de textura (opcional, Enter para omitir): ").strip()
+    texture_input = input("  Archivo de textura (opcional, Enter para omitir): ").strip()
     if texture_input:
         if os.path.exists(texture_input):
             texture_filename = texture_input
-            print(f"✅ Textura encontrada: {texture_filename}")
+            print(f" Textura encontrada: {texture_filename}")
         else:
-            print(f"⚠️  Archivo de textura '{texture_input}' no encontrado - continuando sin textura")
+            print(f"  Archivo de textura '{texture_input}' no encontrado - continuando sin textura")
     
     return obj_filename, texture_filename
 
 def show_main_menu():
     """Mostrar menú principal"""
-    print("\n🎯 OPCIONES DE RENDERIZADO:")
-    print("1. 🏆 Showcase Principal (4 shaders únicos) - RECOMENDADO PARA LABORATORIO")
-    print("2. 🎨 Renderizar shader específico")
-    print("3. 🎬 Crear secuencia de animación")
-    print("4. 📊 Comparación completa de shaders")
-    print("5. 📷 Showcase con diferentes ángulos de cámara")
-    print("6. 🔧 Constructor interactivo de shaders")
-    print("7. 📚 Ver documentación de shaders")
-    print("8. ❌ Salir")
+    print("\n OPCIONES DE RENDERIZADO:")
+    print("1.  Showcase Principal")
+    print("2.  Renderizar shader específico")
+    print("3.  Crear secuencia de animación")
+    print("4.  Comparación completa de shaders")
+    print("5.  Showcase con diferentes ángulos de cámara")
+    print("6.  Constructor interactivo de shaders")
+    print("7.  Ver documentación de shaders")
+    print("8.  Salir")
 
 def render_specific_shader(obj_filename, texture_filename):
     """Renderizar un shader específico"""

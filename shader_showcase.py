@@ -37,51 +37,7 @@ class ShaderShowcase:
                     "wave_amplitude": 0.2
                 }
             },
-            {
-                "name": "pulse_psychedelic",
-                "vertex": "pulse",
-                "fragment": "psychedelic",
-                "description": "Pulsación + Colores Psicodélicos",
-                "params": {
-                    "pulse_speed": 4.0,
-                    "pulse_strength": 0.3
-                }
-            },
-            {
-                "name": "twist_rim",
-                "vertex": "twist",
-                "fragment": "rim",
-                "description": "Torsión + Rim Lighting",
-                "params": {
-                    "rim_power": 2.5
-                }
-            },
-            {
-                "name": "noise_hologram",
-                "vertex": "noise",
-                "fragment": "hologram",
-                "description": "Ruido + Efecto Holograma",
-                "params": {
-                    "noise_scale": 1.5,
-                    "fresnel_power": 2.0
-                }
-            },
-            {
-                "name": "explode_stained_glass",
-                "vertex": "explode",
-                "fragment": "stained_glass",
-                "description": "Explosión + Vitral",
-                "params": {}
-            },
-            {
-                "name": "standard_metallic",
-                "vertex": "standard",
-                "fragment": "metallic",
-                "description": "Superficie Metálica",
-                "params": {
-                    "specular_strength": 1.0
-                }
-            }
+           
         ]
     
     def create_main_showcase(self, obj_filename, texture_filename=None, output_dir="output"):

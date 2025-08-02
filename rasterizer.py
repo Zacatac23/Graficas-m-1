@@ -36,20 +36,12 @@ class ShaderRasterizer:
         self.vertex_shaders = {
             "standard": StandardVertexShader(),
             "wave": WaveVertexShader(),
-            "pulse": PulseVertexShader(),
-            "twist": TwistVertexShader(),
-            "explode": ExplodeVertexShader(),
-            "noise": NoiseVertexShader()
+            
         }
         
         self.fragment_shaders = {
             "standard": StandardFragmentShader(),
             "toon": ToonFragmentShader(),
-            "psychedelic": PsychedelicFragmentShader(),
-            "rim": RimLightFragmentShader(),
-            "hologram": HologramFragmentShader(),
-            "stained_glass": StainedGlassFragmentShader(),
-            "metallic": MetallicFragmentShader()
         }
     
     def get_available_shaders(self):
