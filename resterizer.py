@@ -1,14 +1,21 @@
+"""
+rasterizer.py
+Motor de renderizado principal con pipeline de shaders simplificado
+"""
+
 import math
 import numpy as np
 from PIL import Image
 from math_utils import Vec2, Vec3, Matrix4x4
 from geometry import Camera, OBJLoader
 from shader_core import ShaderUniforms, ShaderInterpolator
-from vertex_shaders import *
-from fragment_shaders import *
+
+# Importaciones simplificadas con nuevo shader
+from vertex_shaders import DisplacementVertexShader, WaveVertexShader
+from fragment_shaders import MetallicFragmentShader, PsychedelicFragmentShader
 
 class ShaderRasterizer:
-    """Rasterizador 3D con sistema de shaders programable"""
+    """Rasterizador 3D con sistema de shaders simplificado pero potente"""
     
     def __init__(self, width=800, height=600):
         self.width = width
@@ -22,21 +29,20 @@ class ShaderRasterizer:
         self.camera = Camera(Vec3(0, 0, 5), Vec3(0, 0, 0), Vec3(0, 1, 0), 
                            fov=60, aspect=width/height)
         
-        # Sistema de shaders
-        self.vertex_shader = StandardVertexShader()
-        self.fragment_shader = StandardFragmentShader()
+        # Sistema de shaders simplificado - METÁLICO COMO ESTÁNDAR
+        self.vertex_shader = DisplacementVertexShader()  # NUEVO SHADER PRINCIPAL
+        self.fragment_shader = MetallicFragmentShader()
         self.uniforms = ShaderUniforms()
         
-        # Registro de shaders disponibles
+        # Solo 2 vertex shaders y 2 fragment shaders
         self.vertex_shaders = {
-            "standard": StandardVertexShader(),
-            "wave": WaveVertexShader(),
-            
+            "displacement": DisplacementVertexShader(),  # NUEVO PRINCIPAL
+            "wave": WaveVertexShader()
         }
         
         self.fragment_shaders = {
-            "standard": StandardFragmentShader(),
-            "toon": ToonFragmentShader(),
+            "metallic": MetallicFragmentShader(),      # PRINCIPAL
+            "psychedelic": PsychedelicFragmentShader()
         }
     
     def get_available_shaders(self):
@@ -133,11 +139,15 @@ class ShaderRasterizer:
             # Cámara orbital animada
             angle = self.uniforms.time * 0.5
             radius = distance
+            height_variation = math.sin(self.uniforms.time * 0.3) * 1.5
             x = radius * math.cos(angle)
             z = radius * math.sin(angle)
-            self.camera.position = Vec3(x, 2, z)
+            y = 2 + height_variation
+            
+            self.camera.position = Vec3(x, y, z)
             self.camera.target = Vec3(0, 0, 0)
             self.camera.up = Vec3(0, 1, 0)
+            
         elif shot_type in camera_configs:
             pos, target, up = camera_configs[shot_type]
             self.camera.position = pos
@@ -303,10 +313,10 @@ class ShaderRasterizer:
         except Exception as e:
             print(f"❌ Error guardando imagen: {e}")
             return False
-        
-        def get_shader_info(self):
-            """Obtener información detallada de los shaders"""
-            info = {
+    
+    def get_shader_info(self):
+        """Obtener información detallada de los shaders"""
+        info = {
             "current_vertex": self.vertex_shader.name,
             "current_fragment": self.fragment_shader.name,
             "available_vertex": [shader.name for shader in self.vertex_shaders.values()],
@@ -315,10 +325,6 @@ class ShaderRasterizer:
                 "time": self.uniforms.time,
                 "wave_frequency": self.uniforms.wave_frequency,
                 "wave_amplitude": self.uniforms.wave_amplitude,
-                "rim_power": self.uniforms.rim_power,
-                "fresnel_power": self.uniforms.fresnel_power,
-                "pulse_speed": self.uniforms.pulse_speed,
-                "pulse_strength": self.uniforms.pulse_strength,
                 "noise_scale": self.uniforms.noise_scale
             }
         }

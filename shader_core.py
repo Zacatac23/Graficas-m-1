@@ -1,67 +1,61 @@
 """
 shader_core.py
-Sistema base de shaders: uniforms, estructuras de datos y clases base
+Sistema core de shaders con clases base y utilidades
 """
 
-from math_utils import Vec3, Vec2
+import math
 import time
-
-class ShaderUniforms:
-    """Clase para almacenar variables uniformes del shader"""
-    def __init__(self):
-        # Tiempo y animación
-        self.time = 0.0
-        
-        # Cámara
-        self.camera_pos = Vec3(0, 0, 5)
-        
-        # Iluminación
-        self.light_pos = Vec3(2, 2, 2)
-        self.light_color = Vec3(1, 1, 1)
-        self.ambient_strength = 0.1
-        self.specular_strength = 0.5
-        self.shininess = 32.0
-        
-        # Matrices de transformación
-        self.model_matrix = None
-        self.view_matrix = None
-        self.projection_matrix = None
-        self.mvp_matrix = None
-        
-        # Parámetros específicos para shaders creativos
-        self.noise_scale = 1.0
-        self.wave_frequency = 1.0
-        self.wave_amplitude = 0.1
-        self.color_mix = 0.5
-        self.rim_power = 2.0
-        self.fresnel_power = 3.0
-        self.pulse_speed = 3.0
-        self.pulse_strength = 0.2
-    
-    def update_time(self):
-        """Actualizar tiempo para animaciones"""
-        self.time = time.time() % 100  # Evitar overflow
+from math_utils import Vec2, Vec3, Matrix4x4
 
 class VertexShaderOutput:
     """Salida del vertex shader"""
     def __init__(self):
-        self.position = Vec3()  # Posición en espacio de clip
-        self.world_pos = Vec3()  # Posición en espacio del mundo
-        self.normal = Vec3()     # Normal en espacio del mundo
-        self.uv = Vec2()         # Coordenadas de textura
-        self.color = Vec3(1, 1, 1)  # Color del vértice
-        self.w = 1.0             # Componente W para perspectiva
+        self.position = Vec3(0, 0, 0)  # Posición en espacio de clip
+        self.w = 1.0  # Coordenada homogénea
+        self.world_pos = Vec3(0, 0, 0)
+        self.normal = Vec3(0, 1, 0)
+        self.uv = Vec2(0, 0)
+        self.color = (255, 255, 255)
+        self.screen_pos = Vec2(0, 0)
 
 class FragmentShaderInput:
-    """Entrada al fragment shader (datos interpolados)"""
+    """Entrada del fragment shader (interpolada)"""
     def __init__(self):
-        self.world_pos = Vec3()
-        self.normal = Vec3()
-        self.uv = Vec2()
-        self.color = Vec3(1, 1, 1)
-        self.screen_pos = Vec2()
+        self.world_pos = Vec3(0, 0, 0)
+        self.normal = Vec3(0, 1, 0)
+        self.uv = Vec2(0, 0)
+        self.color = (255, 255, 255)
+        self.screen_pos = Vec2(0, 0)
 
-# ==================== CLASES BASE DE SHADERS ====================
+class ShaderUniforms:
+    """Variables uniformes compartidas entre shaders"""
+    def __init__(self):
+        # Matrices de transformación
+        self.model_matrix = Matrix4x4.identity()
+        self.view_matrix = Matrix4x4.identity()
+        self.projection_matrix = Matrix4x4.identity()
+        self.mvp_matrix = Matrix4x4.identity()
+        
+        # Información de tiempo y animación
+        self.time = 0.0
+        self.start_time = time.time()
+        
+        # Parámetros de efectos
+        self.wave_frequency = 2.0
+        self.wave_amplitude = 0.1
+        self.rim_power = 2.0
+        self.fresnel_power = 3.0
+        self.pulse_speed = 2.0
+        self.pulse_strength = 0.3
+        self.noise_scale = 5.0
+        
+        # Información de cámara y luz
+        self.camera_pos = Vec3(0, 0, 5)
+        self.light_dir = Vec3(0.5, 1.0, 0.5).normalize()
+    
+    def update_time(self):
+        """Actualizar tiempo para animaciones"""
+        self.time = time.time() - self.start_time
 
 class VertexShader:
     """Clase base para vertex shaders"""
@@ -69,15 +63,7 @@ class VertexShader:
         self.name = name
     
     def execute(self, vertex, uniforms):
-        """Ejecutar el vertex shader
-        
-        Args:
-            vertex: Vértice de entrada
-            uniforms: Variables uniformes
-            
-        Returns:
-            VertexShaderOutput: Datos transformados del vértice
-        """
+        """Ejecutar vertex shader - debe ser implementado por subclases"""
         raise NotImplementedError("Subclases deben implementar execute()")
 
 class FragmentShader:
@@ -85,140 +71,96 @@ class FragmentShader:
     def __init__(self, name="Base Fragment Shader"):
         self.name = name
     
-    def execute(self, fragment_input, uniforms, texture_loader):
-        """Ejecutar el fragment shader
-        
-        Args:
-            fragment_input: Datos interpolados del fragmento
-            uniforms: Variables uniformes
-            texture_loader: Objeto para samplear texturas
-            
-        Returns:
-            tuple: Color RGB (r, g, b) en rango [0, 255]
-        """
+    def execute(self, fragment_input, uniforms, geometry_data=None):
+        """Ejecutar fragment shader - debe ser implementado por subclases"""
         raise NotImplementedError("Subclases deben implementar execute()")
 
-# ==================== UTILIDADES PARA SHADERS ====================
+class ShaderInterpolator:
+    """Utilidades para interpolación de atributos entre vértices"""
+    
+    @staticmethod
+    def interpolate_shader_output(w1, w2, w3, out1, out2, out3):
+        """Interpolar salidas de vertex shader usando coordenadas baricéntricas"""
+        result = FragmentShaderInput()
+        
+        # Interpolar posición mundial
+        result.world_pos = Vec3(
+            w1 * out1.world_pos.x + w2 * out2.world_pos.x + w3 * out3.world_pos.x,
+            w1 * out1.world_pos.y + w2 * out2.world_pos.y + w3 * out3.world_pos.y,
+            w1 * out1.world_pos.z + w2 * out2.world_pos.z + w3 * out3.world_pos.z
+        )
+        
+        # Interpolar normal
+        result.normal = Vec3(
+            w1 * out1.normal.x + w2 * out2.normal.x + w3 * out3.normal.x,
+            w1 * out1.normal.y + w2 * out2.normal.y + w3 * out3.normal.y,
+            w1 * out1.normal.z + w2 * out2.normal.z + w3 * out3.normal.z
+        ).normalize()
+        
+        # Interpolar coordenadas UV
+        result.uv = Vec2(
+            w1 * out1.uv.x + w2 * out2.uv.x + w3 * out3.uv.x,
+            w1 * out1.uv.y + w2 * out2.uv.y + w3 * out3.uv.y
+        )
+        
+        # Interpolar color
+        r = int(w1 * out1.color[0] + w2 * out2.color[0] + w3 * out3.color[0])
+        g = int(w1 * out1.color[1] + w2 * out2.color[1] + w3 * out3.color[1])
+        b = int(w1 * out1.color[2] + w2 * out2.color[2] + w3 * out3.color[2])
+        result.color = (r, g, b)
+        
+        return result
 
 class ShaderUtils:
-    """Utilidades matemáticas comunes para shaders"""
+    """Utilidades matemáticas para shaders"""
     
     @staticmethod
     def clamp(value, min_val=0.0, max_val=1.0):
-        """Clampear valor entre min y max"""
+        """Limitar valor entre min y max"""
         return max(min_val, min(max_val, value))
     
     @staticmethod
-    def mix(a, b, t):
-        """Interpolación lineal entre a y b"""
-        t = ShaderUtils.clamp(t, 0.0, 1.0)
-        return a * (1.0 - t) + b * t
+    def saturate(value):
+        """Limitar valor entre 0 y 1"""
+        return ShaderUtils.clamp(value, 0.0, 1.0)
+    
+    @staticmethod
+    def lerp(a, b, t):
+        """Interpolación lineal"""
+        return a + (b - a) * t
     
     @staticmethod
     def smoothstep(edge0, edge1, x):
-        """Interpolación suave entre edge0 y edge1"""
-        t = ShaderUtils.clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0)
+        """Interpolación suave"""
+        t = ShaderUtils.clamp((x - edge0) / (edge1 - edge0))
         return t * t * (3.0 - 2.0 * t)
     
     @staticmethod
-    def fract(x):
-        """Parte fraccionaria de x"""
-        return x - int(x)
+    def noise(x, y):
+        """Ruido pseudo-aleatorio simple"""
+        n = int(x * 57.0 + y * 113.0) & 0x7FFFFFFF
+        n = (n << 13) ^ n
+        return (1.0 - ((n * (n * n * 15731 + 789221) + 1376312589) & 0x7FFFFFFF) / 1073741824.0)
     
     @staticmethod
-    def vec3_to_rgb(color_vec):
-        """Convertir Vec3 [0,1] a RGB [0,255]"""
-        r = max(0, min(1, color_vec.x)) * 255
-        g = max(0, min(1, color_vec.y)) * 255
-        b = max(0, min(1, color_vec.z)) * 255
-        return (int(r), int(g), int(b))
-    
-    @staticmethod
-    def rgb_to_vec3(rgb_tuple):
-        """Convertir RGB [0,255] a Vec3 [0,1]"""
-        r, g, b = rgb_tuple
-        return Vec3(r / 255.0, g / 255.0, b / 255.0)
-    
-    @staticmethod
-    def noise_1d(x):
-        """Función de ruido 1D simple"""
-        import math
-        x = ShaderUtils.fract(x * 0.1031)
-        x *= x + 33.33
-        x *= x + x
-        return ShaderUtils.fract(x)
-    
-    @staticmethod
-    def noise_3d(pos):
-        """Función de ruido 3D pseudo-aleatoria"""
-        import math
-        x, y, z = pos.x, pos.y, pos.z
-        
-        # Función hash simple
-        n = math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453
-        return ShaderUtils.fract(n)
-    
-    @staticmethod
-    def fbm_noise(pos, octaves=4):
+    def fbm_noise(x, y, octaves=4):
         """Fractal Brownian Motion noise"""
-        import math
         value = 0.0
         amplitude = 0.5
         frequency = 1.0
         
         for i in range(octaves):
-            scaled_pos = Vec3(pos.x * frequency, pos.y * frequency, pos.z * frequency)
-            value += ShaderUtils.noise_3d(scaled_pos) * amplitude
+            value += amplitude * ShaderUtils.noise(x * frequency, y * frequency)
             amplitude *= 0.5
             frequency *= 2.0
         
         return value
-
-class ShaderInterpolator:
-    """Clase para interpolar atributos entre vértices"""
     
     @staticmethod
-    def interpolate_vec3(w1, w2, w3, v1, v2, v3):
-        """Interpolar Vec3 usando coordenadas baricéntricas"""
-        return Vec3(
-            w1 * v1.x + w2 * v2.x + w3 * v3.x,
-            w1 * v1.y + w2 * v2.y + w3 * v3.y,
-            w1 * v1.z + w2 * v2.z + w3 * v3.z
+    def rgb_to_tuple(r, g, b):
+        """Convertir valores RGB float a tupla de enteros"""
+        return (
+            int(ShaderUtils.clamp(r, 0, 1) * 255),
+            int(ShaderUtils.clamp(g, 0, 1) * 255),
+            int(ShaderUtils.clamp(b, 0, 1) * 255)
         )
-    
-    @staticmethod
-    def interpolate_vec2(w1, w2, w3, v1, v2, v3):
-        """Interpolar Vec2 usando coordenadas baricéntricas"""
-        return Vec2(
-            w1 * v1.u + w2 * v2.u + w3 * v3.u,
-            w1 * v1.v + w2 * v2.v + w3 * v3.v
-        )
-    
-    @staticmethod
-    def interpolate_float(w1, w2, w3, f1, f2, f3):
-        """Interpolar float usando coordenadas baricéntricas"""
-        return w1 * f1 + w2 * f2 + w3 * f3
-    
-    @staticmethod
-    def interpolate_shader_output(w1, w2, w3, out1, out2, out3):
-        """Interpolar salidas del vertex shader"""
-        fragment_input = FragmentShaderInput()
-        
-        # Interpolar todos los atributos
-        fragment_input.world_pos = ShaderInterpolator.interpolate_vec3(
-            w1, w2, w3, out1.world_pos, out2.world_pos, out3.world_pos
-        )
-        
-        fragment_input.normal = ShaderInterpolator.interpolate_vec3(
-            w1, w2, w3, out1.normal, out2.normal, out3.normal
-        )
-        
-        fragment_input.uv = ShaderInterpolator.interpolate_vec2(
-            w1, w2, w3, out1.uv, out2.uv, out3.uv
-        )
-        
-        fragment_input.color = ShaderInterpolator.interpolate_vec3(
-            w1, w2, w3, out1.color, out2.color, out3.color
-        )
-        
-        return fragment_input

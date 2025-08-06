@@ -1,38 +1,31 @@
 """
 geometry.py
-Clases para geometría, vértices, triángulos y carga de modelos OBJ
+Clases para geometría, cámara y carga de modelos OBJ
 """
 
 import math
-from math_utils import Vec3, Vec2
-from PIL import Image
 import os
+from PIL import Image
+from math_utils import Vec2, Vec3, Matrix4x4
 
 class Vertex:
-    """Vértice con posición, UV y normal"""
-    def __init__(self, position, uv=None, normal=None):
-        self.position = position
-        self.uv = uv if uv else Vec2()
-        self.normal = normal if normal else Vec3(0, 0, 1)
+    """Representa un vértice con posición, normal y coordenadas UV"""
+    def __init__(self, position=None, normal=None, uv=None):
+        self.position = position or Vec3(0, 0, 0)
+        self.normal = normal or Vec3(0, 1, 0)
+        self.uv = uv or Vec2(0, 0)
 
 class Triangle:
-    """Triángulo formado por 3 vértices"""
+    """Representa un triángulo con tres vértices"""
     def __init__(self, v1, v2, v3):
         self.v1 = v1
         self.v2 = v2
         self.v3 = v3
-        self.color = (255, 255, 255)  # Color por defecto
-    
-    def is_degenerate(self):
-        """Verificar si el triángulo es degenerado"""
-        edge1 = self.v2.position - self.v1.position
-        edge2 = self.v3.position - self.v1.position
-        cross = edge1.cross(edge2)
-        return cross.length() < 1e-6
 
 class Camera:
-    """Cámara con transformaciones de vista y proyección"""
-    def __init__(self, position, target, up, fov=60, aspect=4/3, near=0.1, far=100.0):
+    """Cámara 3D con transformaciones de vista y proyección"""
+    
+    def __init__(self, position, target, up, fov=60, aspect=16/9, near=0.1, far=100):
         self.position = position
         self.target = target
         self.up = up
@@ -43,156 +36,180 @@ class Camera:
     
     def get_view_matrix(self):
         """Obtener matriz de vista"""
-        from math_utils import Matrix4x4
         return Matrix4x4.look_at(self.position, self.target, self.up)
     
     def get_projection_matrix(self):
-        """Obtener matriz de proyección"""
-        from math_utils import Matrix4x4
+        """Obtener matriz de proyección perspectiva"""
         return Matrix4x4.perspective(self.fov, self.aspect, self.near, self.far)
 
 class OBJLoader:
     """Cargador de archivos OBJ con soporte para texturas"""
+    
     def __init__(self):
         self.vertices = []
+        self.normals = []
+        self.uvs = []
         self.triangles = []
         self.texture = None
-        self.uv_coords = []
-        self.normals = []
     
     def load_obj_with_texture(self, obj_filename, texture_filename=None):
-        """Cargar archivo OBJ con textura"""
-        vertices = []
-        uv_coords = [(0, 0)]  # Índice 0 para UV por defecto
-        normals = [Vec3(0, 0, 1)]  # Índice 0 para normal por defecto
-        triangles = []
+        """Cargar archivo OBJ y textura opcional"""
+        try:
+            # Cargar textura si se proporciona
+            if texture_filename and os.path.exists(texture_filename):
+                self.texture = Image.open(texture_filename).convert('RGB')
+                print(f"✅ Textura cargada: {texture_filename} ({self.texture.size[0]}x{self.texture.size[1]})")
+            
+            # Cargar archivo OBJ
+            return self.load_obj(obj_filename)
+        
+        except Exception as e:
+            print(f"❌ Error cargando modelo: {e}")
+            return False
+    
+    def load_obj(self, filename):
+        """Cargar archivo OBJ"""
+        if not os.path.exists(filename):
+            print(f"❌ Archivo no encontrado: {filename}")
+            return False
+        
+        # Limpiar datos anteriores
+        self.vertices.clear()
+        self.normals.clear()
+        self.uvs.clear()
+        self.triangles.clear()
+        
+        # Listas temporales para parseo
+        temp_vertices = []
+        temp_normals = []
+        temp_uvs = []
         
         try:
-            with open(obj_filename, 'r') as file:
+            with open(filename, 'r') as file:
                 for line in file:
                     line = line.strip()
-                    
                     if not line or line.startswith('#'):
                         continue
                     
-                    if line.startswith('v '):
-                        # Parsear vértice
-                        parts = line.split()
-                        if len(parts) >= 4:
-                            x = float(parts[1])
-                            y = float(parts[2])
-                            z = float(parts[3])
-                            vertices.append(Vec3(x, y, z))
+                    parts = line.split()
+                    if not parts:
+                        continue
                     
-                    elif line.startswith('vt '):
-                        # Parsear coordenada de textura
-                        parts = line.split()
-                        if len(parts) >= 3:
-                            u = float(parts[1])
-                            v = float(parts[2])
-                            uv_coords.append((u, v))
+                    # Vértices
+                    if parts[0] == 'v':
+                        x = float(parts[1])
+                        y = float(parts[2])
+                        z = float(parts[3])
+                        temp_vertices.append(Vec3(x, y, z))
                     
-                    elif line.startswith('vn '):
-                        # Parsear normal
-                        parts = line.split()
-                        if len(parts) >= 4:
-                            x = float(parts[1])
-                            y = float(parts[2])
-                            z = float(parts[3])
-                            normals.append(Vec3(x, y, z))
+                    # Coordenadas de textura
+                    elif parts[0] == 'vt':
+                        u = float(parts[1])
+                        v = float(parts[2]) if len(parts) > 2 else 0.0
+                        temp_uvs.append(Vec2(u, v))
                     
-                    elif line.startswith('f '):
-                        # Parsear cara
-                        face_triangles = self.parse_face_with_texture(line, vertices, uv_coords, normals)
-                        triangles.extend(face_triangles)
+                    # Normales
+                    elif parts[0] == 'vn':
+                        x = float(parts[1])
+                        y = float(parts[2])
+                        z = float(parts[3])
+                        temp_normals.append(Vec3(x, y, z).normalize())
+                    
+                    # Caras (triángulos)
+                    elif parts[0] == 'f':
+                        # Manejar diferentes formatos de caras
+                        vertices_data = []
+                        for i in range(1, len(parts)):
+                            vertex_data = parts[i].split('/')
+                            v_idx = int(vertex_data[0]) - 1  # OBJ usa índices 1-based
+                            uv_idx = int(vertex_data[1]) - 1 if len(vertex_data) > 1 and vertex_data[1] else 0
+                            n_idx = int(vertex_data[2]) - 1 if len(vertex_data) > 2 and vertex_data[2] else 0
+                            
+                            vertices_data.append((v_idx, uv_idx, n_idx))
+                        
+                        # Triangular caras (si tiene más de 3 vértices)
+                        for i in range(1, len(vertices_data) - 1):
+                            self.create_triangle(
+                                vertices_data[0], vertices_data[i], vertices_data[i + 1],
+                                temp_vertices, temp_uvs, temp_normals
+                            )
             
-            # Cargar textura si se especifica
-            if texture_filename and os.path.exists(texture_filename):
-                try:
-                    self.texture = Image.open(texture_filename).convert('RGB')
-                    print(f"✅ Textura cargada: {texture_filename}")
-                except Exception as e:
-                    print(f"⚠️  Error cargando textura: {e}")
-                    self.texture = None
-            else:
-                if texture_filename:
-                    print(f"⚠️  Archivo de textura no encontrado: {texture_filename}")
-                self.texture = None
+            # Almacenar vértices finales
+            self.vertices = temp_vertices.copy()
+            self.uvs = temp_uvs.copy()
+            self.normals = temp_normals.copy()
             
-            # Filtrar triángulos degenerados
-            valid_triangles = [t for t in triangles if not t.is_degenerate()]
+            print(f"✅ Modelo OBJ cargado: {filename}")
+            print(f"   📊 Vértices: {len(temp_vertices)}")
+            print(f"   📊 Triángulos: {len(self.triangles)}")
+            print(f"   📊 UVs: {len(temp_uvs)}")
+            print(f"   📊 Normales: {len(temp_normals)}")
             
-            self.vertices = vertices
-            self.triangles = valid_triangles
-            self.uv_coords = uv_coords
-            self.normals = normals
-            
-            print(f"Modelo cargado exitosamente:")
-            print(f"  - {len(vertices)} vértices")
-            print(f"  - {len(uv_coords)-1} coordenadas UV")
-            print(f"  - {len(normals)-1} normales")
-            print(f"  - {len(self.triangles)} triángulos válidos")
             return True
             
-        except FileNotFoundError:
-            print(f"Error: No se encontró el archivo '{obj_filename}'")
-            return False
         except Exception as e:
-            print(f"Error al cargar archivo: {e}")
+            print(f"❌ Error parseando OBJ: {e}")
             return False
     
-    def parse_face_with_texture(self, line, vertices, uv_coords, normals):
-        """Parsear una cara con información de textura"""
-        parts = line.split()
-        if len(parts) < 4:
-            return []
-        
-        # Parsear vértices con formato v/vt/vn
-        face_vertices = []
-        for i in range(1, len(parts)):
-            vertex_data = parts[i].split('/')
+    def create_triangle(self, v1_data, v2_data, v3_data, temp_vertices, temp_uvs, temp_normals):
+        """Crear triángulo a partir de índices"""
+        try:
+            # Obtener datos del primer vértice
+            v1_pos = temp_vertices[v1_data[0]] if v1_data[0] < len(temp_vertices) else Vec3()
+            v1_uv = temp_uvs[v1_data[1]] if v1_data[1] < len(temp_uvs) and v1_data[1] >= 0 else Vec2()
+            v1_normal = temp_normals[v1_data[2]] if v1_data[2] < len(temp_normals) and v1_data[2] >= 0 else Vec3(0, 1, 0)
             
-            # Índice de vértice (requerido)
-            v_idx = int(vertex_data[0]) - 1 if vertex_data[0] else 0
+            # Obtener datos del segundo vértice
+            v2_pos = temp_vertices[v2_data[0]] if v2_data[0] < len(temp_vertices) else Vec3()
+            v2_uv = temp_uvs[v2_data[1]] if v2_data[1] < len(temp_uvs) and v2_data[1] >= 0 else Vec2()
+            v2_normal = temp_normals[v2_data[2]] if v2_data[2] < len(temp_normals) and v2_data[2] >= 0 else Vec3(0, 1, 0)
             
-            # Índice de textura (opcional)
-            uv_idx = 0
-            if len(vertex_data) > 1 and vertex_data[1]:
-                uv_idx = int(vertex_data[1]) - 1
-                if uv_idx < 0 or uv_idx >= len(uv_coords):
-                    uv_idx = 0
+            # Obtener datos del tercer vértice
+            v3_pos = temp_vertices[v3_data[0]] if v3_data[0] < len(temp_vertices) else Vec3()
+            v3_uv = temp_uvs[v3_data[1]] if v3_data[1] < len(temp_uvs) and v3_data[1] >= 0 else Vec2()
+            v3_normal = temp_normals[v3_data[2]] if v3_data[2] < len(temp_normals) and v3_data[2] >= 0 else Vec3(0, 1, 0)
             
-            # Índice de normal (opcional)
-            n_idx = 0
-            if len(vertex_data) > 2 and vertex_data[2]:
-                n_idx = int(vertex_data[2]) - 1
-                if n_idx < 0 or n_idx >= len(normals):
-                    n_idx = 0
+            # Crear vértices
+            vertex1 = Vertex(v1_pos, v1_normal, v1_uv)
+            vertex2 = Vertex(v2_pos, v2_normal, v2_uv)
+            vertex3 = Vertex(v3_pos, v3_normal, v3_uv)
             
-            if 0 <= v_idx < len(vertices):
-                uv = Vec2(uv_coords[uv_idx][0], uv_coords[uv_idx][1])
-                vertex = Vertex(vertices[v_idx], uv, normals[n_idx])
-                face_vertices.append(vertex)
-        
-        # Triangular la cara
-        triangles = []
-        for i in range(1, len(face_vertices) - 1):
-            triangle = Triangle(face_vertices[0], face_vertices[i], face_vertices[i + 1])
-            triangles.append(triangle)
-        
-        return triangles
+            # Crear triángulo
+            triangle = Triangle(vertex1, vertex2, vertex3)
+            self.triangles.append(triangle)
+            
+        except Exception as e:
+            print(f"⚠️  Error creando triángulo: {e}")
     
-    def sample_texture(self, u, v):
-        """Muestrear color de la textura en coordenadas UV"""
+    def get_texture_color(self, u, v):
+        """Obtener color de textura en coordenadas UV"""
         if not self.texture:
-            return (128, 128, 128)  # Gris por defecto
+            return (255, 255, 255)
         
-        # Clamp UV coordinates
-        u = max(0, min(1, u))
-        v = max(0, min(1, v))
+        # Asegurar que las coordenadas estén en rango [0,1]
+        u = u % 1.0
+        v = v % 1.0
         
         # Convertir a coordenadas de pixel
-        x = int(u * (self.texture.width - 1))
-        y = int((1 - v) * (self.texture.height - 1))  # Invertir V
+        x = int(u * (self.texture.size[0] - 1))
+        y = int((1.0 - v) * (self.texture.size[1] - 1))  # Invertir V
         
-        return self.texture.getpixel((x, y))
+        # Obtener color
+        try:
+            return self.texture.getpixel((x, y))
+        except:
+            return (255, 255, 255)
+    
+    def calculate_bounds(self):
+        """Calcular límites del modelo"""
+        if not self.vertices:
+            return Vec3(), Vec3()
+        
+        min_x = min(v.x for v in self.vertices)
+        max_x = max(v.x for v in self.vertices)
+        min_y = min(v.y for v in self.vertices)
+        max_y = max(v.y for v in self.vertices)
+        min_z = min(v.z for v in self.vertices)
+        max_z = max(v.z for v in self.vertices)
+        
+        return Vec3(min_x, min_y, min_z), Vec3(max_x, max_y, max_z)

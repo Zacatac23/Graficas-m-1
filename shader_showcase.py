@@ -1,6 +1,6 @@
 import os
 import time
-from rasterizer import ShaderRasterizer
+from resterizer import ShaderRasterizer
 
 class ShaderShowcase:
     """Clase para crear showcases y demostraciones de shaders"""

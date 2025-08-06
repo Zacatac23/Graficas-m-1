@@ -1,17 +1,43 @@
 """
 math_utils.py
-Clases matemáticas básicas para el renderizador 3D
+Utilidades matemáticas para el renderizador 3D
 """
 
 import math
-import numpy as np
+
+class Vec2:
+    """Vector 2D"""
+    def __init__(self, x=0, y=0):
+        self.x = float(x)
+        self.y = float(y)
+    
+    def __add__(self, other):
+        return Vec2(self.x + other.x, self.y + other.y)
+    
+    def __sub__(self, other):
+        return Vec2(self.x - other.x, self.y - other.y)
+    
+    def __mul__(self, scalar):
+        return Vec2(self.x * scalar, self.y * scalar)
+    
+    def dot(self, other):
+        return self.x * other.x + self.y * other.y
+    
+    def length(self):
+        return math.sqrt(self.x * self.x + self.y * self.y)
+    
+    def normalize(self):
+        l = self.length()
+        if l > 0:
+            return Vec2(self.x / l, self.y / l)
+        return Vec2(0, 0)
 
 class Vec3:
-    """Vector 3D con operaciones básicas"""
+    """Vector 3D"""
     def __init__(self, x=0, y=0, z=0):
-        self.x = x
-        self.y = y
-        self.z = z
+        self.x = float(x)
+        self.y = float(y)
+        self.z = float(z)
     
     def __add__(self, other):
         return Vec3(self.x + other.x, self.y + other.y, self.z + other.z)
@@ -20,156 +46,175 @@ class Vec3:
         return Vec3(self.x - other.x, self.y - other.y, self.z - other.z)
     
     def __mul__(self, scalar):
-        if isinstance(scalar, (int, float)):
-            return Vec3(self.x * scalar, self.y * scalar, self.z * scalar)
-        return Vec3(self.x * scalar.x, self.y * scalar.y, self.z * scalar.z)
+        return Vec3(self.x * scalar, self.y * scalar, self.z * scalar)
     
-    def __str__(self):
-        return f"Vec3({self.x:.2f}, {self.y:.2f}, {self.z:.2f})"
+    def __neg__(self):
+        return Vec3(-self.x, -self.y, -self.z)
     
     def dot(self, other):
-        """Producto punto entre dos vectores"""
         return self.x * other.x + self.y * other.y + self.z * other.z
     
     def cross(self, other):
-        """Producto cruz entre dos vectores"""
         return Vec3(
             self.y * other.z - self.z * other.y,
             self.z * other.x - self.x * other.z,
             self.x * other.y - self.y * other.x
         )
     
-    def normalize(self):
-        """Normalizar el vector"""
-        length = math.sqrt(self.x**2 + self.y**2 + self.z**2)
-        if length > 0:
-            return Vec3(self.x / length, self.y / length, self.z / length)
-        return Vec3(0, 0, 0)
-    
     def length(self):
-        """Longitud del vector"""
-        return math.sqrt(self.x**2 + self.y**2 + self.z**2)
-
-class Vec2:
-    """Vector 2D para coordenadas UV y de pantalla"""
-    def __init__(self, u=0, v=0):
-        self.u = u
-        self.v = v
-        # Alias para compatibilidad con coordenadas 2D
-        self.x = u
-        self.y = v
+        return math.sqrt(self.x * self.x + self.y * self.y + self.z * self.z)
     
-    def __str__(self):
-        return f"Vec2({self.u:.2f}, {self.v:.2f})"
+    def length_squared(self):
+        return self.x * self.x + self.y * self.y + self.z * self.z
+    
+    def normalize(self):
+        l = self.length()
+        if l > 0:
+            return Vec3(self.x / l, self.y / l, self.z / l)
+        return Vec3(0, 0, 1)  # Default normal
+    
+    def reflect(self, normal):
+        """Reflejar vector sobre normal"""
+        return self - normal * (2 * self.dot(normal))
 
 class Matrix4x4:
     """Matriz 4x4 para transformaciones 3D"""
-    def __init__(self, matrix=None):
-        if matrix is None:
-            self.m = np.eye(4)
+    def __init__(self, data=None):
+        if data:
+            self.m = [row[:] for row in data]  # Copia profunda
         else:
-            self.m = np.array(matrix)
+            self.m = [[0.0 for _ in range(4)] for _ in range(4)]
+    
+    @staticmethod
+    def identity():
+        """Crear matriz identidad"""
+        matrix = Matrix4x4()
+        for i in range(4):
+            matrix.m[i][i] = 1.0
+        return matrix
     
     @staticmethod
     def translation(x, y, z):
-        """Matriz de traslación"""
-        matrix = np.eye(4)
-        matrix[0, 3] = x
-        matrix[1, 3] = y
-        matrix[2, 3] = z
-        return Matrix4x4(matrix)
-    
-    @staticmethod
-    def rotation_x(angle):
-        """Matriz de rotación en X"""
-        c = np.cos(angle)
-        s = np.sin(angle)
-        matrix = np.array([
-            [1, 0, 0, 0],
-            [0, c, -s, 0],
-            [0, s, c, 0],
-            [0, 0, 0, 1]
-        ])
-        return Matrix4x4(matrix)
-    
-    @staticmethod
-    def rotation_y(angle):
-        """Matriz de rotación en Y"""
-        c = np.cos(angle)
-        s = np.sin(angle)
-        matrix = np.array([
-            [c, 0, s, 0],
-            [0, 1, 0, 0],
-            [-s, 0, c, 0],
-            [0, 0, 0, 1]
-        ])
-        return Matrix4x4(matrix)
-    
-    @staticmethod
-    def rotation_z(angle):
-        """Matriz de rotación en Z"""
-        c = np.cos(angle)
-        s = np.sin(angle)
-        matrix = np.array([
-            [c, -s, 0, 0],
-            [s, c, 0, 0],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
-        return Matrix4x4(matrix)
+        """Crear matriz de traslación"""
+        matrix = Matrix4x4.identity()
+        matrix.m[0][3] = x
+        matrix.m[1][3] = y
+        matrix.m[2][3] = z
+        return matrix
     
     @staticmethod
     def scale(x, y, z):
-        """Matriz de escala"""
-        matrix = np.eye(4)
-        matrix[0, 0] = x
-        matrix[1, 1] = y
-        matrix[2, 2] = z
-        return Matrix4x4(matrix)
+        """Crear matriz de escalado"""
+        matrix = Matrix4x4.identity()
+        matrix.m[0][0] = x
+        matrix.m[1][1] = y
+        matrix.m[2][2] = z
+        return matrix
+    
+    @staticmethod
+    def rotation_x(angle_rad):
+        """Crear matriz de rotación en X"""
+        cos_a = math.cos(angle_rad)
+        sin_a = math.sin(angle_rad)
+        matrix = Matrix4x4.identity()
+        matrix.m[1][1] = cos_a
+        matrix.m[1][2] = -sin_a
+        matrix.m[2][1] = sin_a
+        matrix.m[2][2] = cos_a
+        return matrix
+    
+    @staticmethod
+    def rotation_y(angle_rad):
+        """Crear matriz de rotación en Y"""
+        cos_a = math.cos(angle_rad)
+        sin_a = math.sin(angle_rad)
+        matrix = Matrix4x4.identity()
+        matrix.m[0][0] = cos_a
+        matrix.m[0][2] = sin_a
+        matrix.m[2][0] = -sin_a
+        matrix.m[2][2] = cos_a
+        return matrix
+    
+    @staticmethod
+    def rotation_z(angle_rad):
+        """Crear matriz de rotación en Z"""
+        cos_a = math.cos(angle_rad)
+        sin_a = math.sin(angle_rad)
+        matrix = Matrix4x4.identity()
+        matrix.m[0][0] = cos_a
+        matrix.m[0][1] = -sin_a
+        matrix.m[1][0] = sin_a
+        matrix.m[1][1] = cos_a
+        return matrix
+    
+    @staticmethod
+    def perspective(fov_rad, aspect, near, far):
+        """Crear matriz de proyección perspectiva"""
+        matrix = Matrix4x4()
+        f = 1.0 / math.tan(fov_rad / 2.0)
+        matrix.m[0][0] = f / aspect
+        matrix.m[1][1] = f
+        matrix.m[2][2] = (far + near) / (near - far)
+        matrix.m[2][3] = (2 * far * near) / (near - far)
+        matrix.m[3][2] = -1.0
+        return matrix
     
     @staticmethod
     def look_at(eye, target, up):
-        """Matriz de vista (view matrix)"""
-        f = (target - eye).normalize()  # forward
-        s = f.cross(up).normalize()     # side
-        u = s.cross(f)                  # up
+        """Crear matriz de vista look-at"""
+        f = (target - eye).normalize()
+        s = f.cross(up).normalize()
+        u = s.cross(f)
         
-        matrix = np.array([
-            [s.x, s.y, s.z, -s.dot(eye)],
-            [u.x, u.y, u.z, -u.dot(eye)],
-            [-f.x, -f.y, -f.z, f.dot(eye)],
-            [0, 0, 0, 1]
-        ])
-        return Matrix4x4(matrix)
-    
-    @staticmethod
-    def perspective(fov, aspect, near, far):
-        """Matriz de proyección perspectiva"""
-        f = 1.0 / math.tan(fov / 2.0)
-        matrix = np.array([
-            [f / aspect, 0, 0, 0],
-            [0, f, 0, 0],
-            [0, 0, (far + near) / (near - far), (2 * far * near) / (near - far)],
-            [0, 0, -1, 0]
-        ])
-        return Matrix4x4(matrix)
+        matrix = Matrix4x4.identity()
+        matrix.m[0][0] = s.x
+        matrix.m[1][0] = s.y
+        matrix.m[2][0] = s.z
+        matrix.m[0][1] = u.x
+        matrix.m[1][1] = u.y
+        matrix.m[2][1] = u.z
+        matrix.m[0][2] = -f.x
+        matrix.m[1][2] = -f.y
+        matrix.m[2][2] = -f.z
+        matrix.m[0][3] = -s.dot(eye)
+        matrix.m[1][3] = -u.dot(eye)
+        matrix.m[2][3] = f.dot(eye)
+        
+        return matrix
     
     @staticmethod
     def viewport(x, y, width, height):
-        """Matriz de viewport"""
-        matrix = np.array([
-            [width/2, 0, 0, x + width/2],
-            [0, -height/2, 0, y + height/2],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
-        return Matrix4x4(matrix)
-    
-    def transform_point(self, point):
-        """Transformar un punto 3D"""
-        point_array = np.array([point.x, point.y, point.z, 1.0])
-        transformed = self.m @ point_array
-        return Vec3(transformed[0], transformed[1], transformed[2]), transformed[3]
+        """Crear matriz de viewport"""
+        matrix = Matrix4x4.identity()
+        matrix.m[0][0] = width / 2.0
+        matrix.m[1][1] = -height / 2.0  # Y invertida para pantalla
+        matrix.m[2][2] = 1.0
+        matrix.m[0][3] = x + width / 2.0
+        matrix.m[1][3] = y + height / 2.0
+        return matrix
     
     def __mul__(self, other):
-        return Matrix4x4(self.m @ other.m)
+        """Multiplicación de matrices"""
+        result = Matrix4x4()
+        for i in range(4):
+            for j in range(4):
+                for k in range(4):
+                    result.m[i][j] += self.m[i][k] * other.m[k][j]
+        return result
+    
+    def transform_point(self, point):
+        """Transformar punto 3D"""
+        x = self.m[0][0] * point.x + self.m[0][1] * point.y + self.m[0][2] * point.z + self.m[0][3]
+        y = self.m[1][0] * point.x + self.m[1][1] * point.y + self.m[1][2] * point.z + self.m[1][3]
+        z = self.m[2][0] * point.x + self.m[2][1] * point.y + self.m[2][2] * point.z + self.m[2][3]
+        w = self.m[3][0] * point.x + self.m[3][1] * point.y + self.m[3][2] * point.z + self.m[3][3]
+        
+        return Vec3(x, y, z), w
+    
+    def transform_vector(self, vector):
+        """Transformar vector 3D (sin traslación)"""
+        x = self.m[0][0] * vector.x + self.m[0][1] * vector.y + self.m[0][2] * vector.z
+        y = self.m[1][0] * vector.x + self.m[1][1] * vector.y + self.m[1][2] * vector.z
+        z = self.m[2][0] * vector.x + self.m[2][1] * vector.y + self.m[2][2] * vector.z
+        
+        return Vec3(x, y, z)
