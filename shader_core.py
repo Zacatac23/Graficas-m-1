@@ -49,9 +49,22 @@ class ShaderUniforms:
         self.pulse_strength = 0.3
         self.noise_scale = 5.0
         
-        # Información de cámara y luz
+        # Información de cámara y luz MEJORADA
         self.camera_pos = Vec3(0, 0, 5)
-        self.light_dir = Vec3(0.5, 1.0, 0.5).normalize()
+        
+        # Sistema de iluminación múltiple mejorado
+        self.light_dir = Vec3(0.6, 0.8, 0.4).normalize()  # Luz principal más suave
+        self.light_color = Vec3(1.0, 0.95, 0.9)  # Luz cálida
+        
+        # Luces secundarias
+        self.light2_dir = Vec3(-0.4, 0.6, -0.7).normalize()
+        self.light2_color = Vec3(0.3, 0.4, 0.6)  # Luz azul fría
+        
+        self.light3_dir = Vec3(0.8, 0.1, 0.2).normalize()
+        self.light3_color = Vec3(0.2, 0.3, 0.2)  # Luz verde sutil
+        
+        # Iluminación ambiental mejorada
+        self.ambient_color = Vec3(0.2, 0.25, 0.3)  # Ambiente azul suave
     
     def update_time(self):
         """Actualizar tiempo para animaciones"""
