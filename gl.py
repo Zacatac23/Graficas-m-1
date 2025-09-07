@@ -105,9 +105,9 @@ class Renderer(object):
         dy = abs(y1 - y0)
         dx = abs(x1 - x0)
 
-        #steep corresponde a inclinación
+        #steep corresponde a inclinaciÃ³n
         steep = dy > dx
-        #Si la inclinación es mayor a 1, intercambiamos los puntos
+        #Si la inclinaciÃ³n es mayor a 1, intercambiamos los puntos
         if steep:
             x0, y0 = y0, x0
             x1, y1 = y1, x1
@@ -133,9 +133,9 @@ class Renderer(object):
         #4.valor en y actualmente
         y = y0
 
-        #Asegurarse de que los valores de x que se pasan también son enteros
+        #Asegurarse de que los valores de x que se pasan tambiÃ©n son enteros
         for x in range(round(x0), round(x1) + 1):
-            #Si la inclinación es mayor a 1, entonces tenemos que intercambiar los valores de x e y
+            #Si la inclinaciÃ³n es mayor a 1, entonces tenemos que intercambiar los valores de x e y
             if steep:
                 self.glPoint(y, x, color or self.currColor)
             else:
