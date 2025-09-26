@@ -1,5 +1,4 @@
 import numpy as np
-from physics_utils import refractVector, totalInternalReflection, fresnel, reflectVector
 
 class Material(object):
     def __init__(self, diffuse=[1,1,1], specular=[1,1,1], shininess=32, ambient=None, 
@@ -13,7 +12,10 @@ class Material(object):
         self.refractive_index = refractive_index
     
     def GetSurfaceColor(self, intercept, renderer):
-        # Tu código original de Phong - SIN CAMBIOS
+        """
+        Simplified surface color calculation with basic Phong lighting.
+        NO advanced reflections to avoid recursion problems.
+        """
         finalColor = [0, 0, 0]
         
         # Componente ambiente
@@ -26,14 +28,17 @@ class Material(object):
         for light in renderer.lights:
             if light.type == "Directional":
                 lightDir = [-i for i in light.direction]
+                
+                # Shadow ray para verificar si hay objetos bloqueando la luz
                 offset = 0.001
                 shadowRayOrigin = [intercept.point[i] + intercept.normal[i] * offset for i in range(3)]
                 shadowIntercept = renderer.glCastRay(shadowRayOrigin, lightDir, intercept.obj)
                 
+                # Solo aplicar luz si no hay sombra
                 if shadowIntercept is None:
                     lightColor = light.GetLightColor(intercept)
                     
-                    # Componente difusa
+                    # Componente difusa (Lambert)
                     diffuseColor = [self.diffuse[i] * lightColor[i] for i in range(3)]
                     finalColor = [finalColor[i] + diffuseColor[i] for i in range(3)]
                     
@@ -49,111 +54,67 @@ class Material(object):
                         specularColor = [self.specular[i] * lightColor[i] * specularIntensity for i in range(3)]
                         finalColor = [finalColor[i] + specularColor[i] for i in range(3)]
         
-        # NUEVAS IMPLEMENTACIONES FÍSICAMENTE AVANZADAS:
-        
-        # Reflexión avanzada con Fresnel
-        if self.reflectivity > 0 and hasattr(renderer, 'rayDepth') and renderer.rayDepth < 3:
-            reflectionColor = self._getAdvancedReflectionColor(intercept, renderer)
+        # REFLEXIONES SIMPLES (sin recursión profunda)
+        if self.reflectivity > 0:
+            reflectionColor = self._getSimpleReflection(intercept, renderer)
             if reflectionColor:
                 for i in range(3):
                     finalColor[i] = finalColor[i] * (1 - self.reflectivity) + reflectionColor[i] * self.reflectivity
         
-        # Transparencia avanzada con refracción física
-        if self.transparency > 0 and hasattr(renderer, 'rayDepth') and renderer.rayDepth < 3:
-            transmissionColor = self._getAdvancedTransmissionColor(intercept, renderer)
-            if transmissionColor:
-                for i in range(3):
-                    finalColor[i] = finalColor[i] * (1 - self.transparency) + transmissionColor[i] * self.transparency
-        
-        # Clamping to [0,1]
+        # Clamping final a [0,1]
         finalColor = [min(1, max(0, finalColor[i])) for i in range(3)]
         return finalColor
     
-    def _getAdvancedReflectionColor(self, intercept, renderer):
-        """Reflexión usando física avanzada con Fresnel"""
+    def _getSimpleReflection(self, intercept, renderer):
+        """
+        Reflexión simple sin recursión profunda.
+        Solo 1 nivel de reflexión para evitar loops infinitos.
+        """
+        # Verificar si ya estamos en una reflexión (evitar recursión)
+        if hasattr(renderer, 'reflection_depth'):
+            if renderer.reflection_depth >= 1:  # Máximo 1 nivel
+                return None
+        else:
+            renderer.reflection_depth = 0
+        
         viewDir = np.array(intercept.rayDirection)
         normal = np.array(intercept.normal)
         
-        # Calcular coeficientes de Fresnel
-        n1 = 1.0  # Aire
-        n2 = self.refractive_index
-        Kr, Kt = fresnel(normal, viewDir, n1, n2)
-        
-        # Reflexión perfecta
-        reflectDir = reflectVector(normal, viewDir)
+        # Calcular dirección de reflexión perfecta
+        reflectDir = viewDir - 2 * np.dot(viewDir, normal) * normal
         
         # Lanzar rayo de reflexión
         offset = 0.001
         reflectOrigin = [intercept.point[i] + normal[i] * offset for i in range(3)]
         
-        # Incrementar profundidad del rayo
-        if not hasattr(renderer, 'rayDepth'):
-            renderer.rayDepth = 0
-        renderer.rayDepth += 1
-        
+        # Incrementar depth y lanzar rayo
+        renderer.reflection_depth += 1
         reflectHit = renderer.glCastRay(reflectOrigin, reflectDir, intercept.obj)
-        
-        renderer.rayDepth -= 1
+        renderer.reflection_depth -= 1
         
         if reflectHit and reflectHit.obj.material:
-            reflectedColor = reflectHit.obj.material.GetSurfaceColor(reflectHit, renderer)
-            # Aplicar coeficiente de Fresnel
-            return [c * Kr for c in reflectedColor]
+            # Para objetos reflejados, usar SOLO componentes básicos (sin más reflexiones)
+            return self._getBasicColor(reflectHit, renderer)
         else:
-            # Usar environment map si está disponible
-            if hasattr(renderer, 'environmentMap') and renderer.environmentMap:
-                envColor = renderer.environmentMap.getColorFromDirection(reflectDir)
-                return [c * Kr for c in envColor]
-            else:
-                # Cielo azul simple
-                skyColor = [0.5 + reflectDir[1] * 0.3, 0.7 + reflectDir[1] * 0.2, 0.9]
-                return [c * Kr for c in skyColor]
+            # Color de cielo/ambiente simple
+            return [0.7 + reflectDir[1] * 0.2, 0.8 + reflectDir[1] * 0.1, 0.9]
     
-    def _getAdvancedTransmissionColor(self, intercept, renderer):
-        """Refracción usando física avanzada con Ley de Snell"""
-        viewDir = np.array(intercept.rayDirection)
-        normal = np.array(intercept.normal)
+    def _getBasicColor(self, intercept, renderer):
+        """
+        Color básico sin reflexiones - para objetos en reflexiones.
+        Solo diffuse + ambient + un poco de specular.
+        """
+        color = [0, 0, 0]
         
-        n1 = 1.0  # Aire
-        n2 = self.refractive_index
+        # Solo ambiente y difuso básico
+        for light in renderer.lights:
+            if light.type == "Ambient":
+                ambientColor = [self.ambient[i] * light.GetLightColor()[i] for i in range(3)]
+                color = [color[i] + ambientColor[i] for i in range(3)]
+            elif light.type == "Directional":
+                lightDir = [-i for i in light.direction]
+                lightColor = light.GetLightColor(intercept)
+                diffuseColor = [intercept.obj.material.diffuse[i] * lightColor[i] for i in range(3)]
+                color = [color[i] + diffuseColor[i] for i in range(3)]
         
-        # Verificar reflexión interna total
-        if totalInternalReflection(normal, viewDir, n1, n2):
-            # Si hay reflexión interna total, actuar como espejo perfecto
-            return self._getAdvancedReflectionColor(intercept, renderer)
-        
-        # Calcular coeficientes de Fresnel
-        Kr, Kt = fresnel(normal, viewDir, n1, n2)
-        
-        # Calcular dirección de refracción
-        try:
-            refractDir = refractVector(normal, viewDir, n1, n2)
-        except:
-            # Si falla el cálculo, usar reflexión
-            return self._getAdvancedReflectionColor(intercept, renderer)
-        
-        # Lanzar rayo de refracción
-        offset = 0.001
-        refractOrigin = [intercept.point[i] - normal[i] * offset for i in range(3)]
-        
-        # Incrementar profundidad del rayo
-        if not hasattr(renderer, 'rayDepth'):
-            renderer.rayDepth = 0
-        renderer.rayDepth += 1
-        
-        refractHit = renderer.glCastRay(refractOrigin, refractDir, intercept.obj)
-        
-        renderer.rayDepth -= 1
-        
-        if refractHit and refractHit.obj.material:
-            refractedColor = refractHit.obj.material.GetSurfaceColor(refractHit, renderer)
-            # Aplicar coeficiente de Fresnel para transmisión
-            return [c * Kt for c in refractedColor]
-        else:
-            # Usar environment map si está disponible
-            if hasattr(renderer, 'environmentMap') and renderer.environmentMap:
-                envColor = renderer.environmentMap.getColorFromDirection(refractDir)
-                return [c * Kt for c in envColor]
-            else:
-                # Color de fondo
-                return [0.9 * Kt, 0.9 * Kt, 1.0 * Kt]
+        return [min(1, max(0, color[i])) for i in range(3)]

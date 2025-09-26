@@ -20,47 +20,60 @@ screen = pygame.display.set_mode((width, height), pygame.HIDDEN)
 
 rend = Renderer(screen)
 
-# Set camera position to be inside the room looking around
-rend.camera.translation = [0, 0, 3]
+# Set camera position to be clearly inside the room
+rend.camera.translation = [0, 0, 2]
 
-# Darker background color so the lit room shows up better
-rend.glClearColor(0.1, 0.1, 0.1)
+# Black background so the bright white room stands out
+rend.glClearColor(0.0, 0.0, 0.0)
 
 print("Creating materials for the room...")
 
-# White walls material (brighter to reflect light better)
+# Simple materials WITHOUT advanced reflections to avoid recursion
 white_wall = Material(
-    diffuse=[0.95, 0.95, 0.95], 
-    specular=[0.3, 0.3, 0.3], 
+    diffuse=[1.0, 1.0, 1.0],     # Pure white diffuse
+    specular=[0.3, 0.3, 0.3],    # Some specular
     shininess=20,
-    ambient=[0.4, 0.4, 0.4],  # Much higher ambient
-    reflectivity=0.1
+    ambient=[0.7, 0.7, 0.7],     # High ambient
+    reflectivity=0.1,            # Small reflectivity using the fixed system
+    transparency=0.0
 )
 
-# Floor material (brighter)
+# Bright white floor - Small reflections
 floor_material = Material(
-    diffuse=[0.9, 0.9, 0.9], 
+    diffuse=[0.95, 0.95, 0.95], 
     specular=[0.4, 0.4, 0.4], 
     shininess=30,
-    ambient=[0.35, 0.35, 0.35],  # Higher ambient
-    reflectivity=0.15
+    ambient=[0.6, 0.6, 0.6],
+    reflectivity=0.05,           # Very small reflectivity
+    transparency=0.0
 )
 
-# Ceiling material (very bright to simulate fluorescent lighting)
+# Bright ceiling - NO reflections (lights come from here)
 ceiling_material = Material(
-    diffuse=[0.98, 0.98, 1.0], 
+    diffuse=[1.0, 1.0, 1.0], 
     specular=[0.2, 0.2, 0.2], 
     shininess=10,
-    ambient=[0.5, 0.5, 0.55]  # Very high ambient - acts like light source
+    ambient=[0.8, 0.8, 0.8],    # Very bright
+    reflectivity=0.0,           # NO reflectivity for ceiling
+    transparency=0.0
 )
 
-# Materials for objects inside the room
+# Ceiling material that glows like fluorescent panels
+ceiling_material = Material(
+    diffuse=[1.0, 1.0, 1.0], 
+    specular=[0.1, 0.1, 0.1], 
+    shininess=5,
+    ambient=[0.95, 0.95, 0.95]  # Almost pure ambient - like it's glowing
+)
+
+# Materials for objects - WITH safe reflectivity levels
 red_cube = Material(
     diffuse=[0.8, 0.2, 0.2], 
     specular=[0.3, 0.3, 0.3], 
     shininess=50,
     ambient=[0.1, 0.02, 0.02],
-    reflectivity=0.1
+    reflectivity=0.0,          # No reflectivity for cubes to keep simple
+    transparency=0.0
 )
 
 blue_cube = Material(
@@ -68,22 +81,27 @@ blue_cube = Material(
     specular=[0.3, 0.3, 0.3], 
     shininess=50,
     ambient=[0.02, 0.02, 0.1],
-    reflectivity=0.1
+    reflectivity=0.0,          # No reflectivity for cubes
+    transparency=0.0
 )
 
 green_triangle = Material(
     diffuse=[0.2, 0.8, 0.2], 
     specular=[0.4, 0.4, 0.4], 
     shininess=60,
-    ambient=[0.02, 0.1, 0.02]
+    ambient=[0.02, 0.1, 0.02],
+    reflectivity=0.0,          # No reflectivity for triangle
+    transparency=0.0
 )
 
+# Metallic disk with MODERATE reflectivity using the fixed system
 metallic_disk = Material(
-    diffuse=[0.1, 0.1, 0.1], 
-    specular=[0.95, 0.95, 0.95], 
+    diffuse=[0.1, 0.1, 0.1],   # Dark base color
+    specular=[0.9, 0.9, 0.9],  # High specular for metallic look
     shininess=200,
     ambient=[0.02, 0.02, 0.02],
-    reflectivity=0.9  # Very high reflectivity to act as mirror
+    reflectivity=0.6,          # Moderate reflectivity - SAFE with new system
+    transparency=0.0
 )
 
 print("Building the room with 5+ planes...")
@@ -164,12 +182,14 @@ rend.scene.append(Disk(
     material=metallic_disk
 ))
 
-# Add some extra spheres for visual interest (keeping some from your original scene)
+# Add some extra spheres for visual interest - WITH small reflections
 glossy_sphere = Material(
     diffuse=[0.7, 0.5, 0.8], 
-    specular=[0.8, 0.8, 0.8], 
+    specular=[0.5, 0.5, 0.5], 
     shininess=80,
-    reflectivity=0.3
+    ambient=[0.1, 0.05, 0.1],
+    reflectivity=0.2,          # Small reflectivity for glossy look
+    transparency=0.0
 )
 
 rend.scene.append(Sphere(
@@ -178,38 +198,43 @@ rend.scene.append(Sphere(
     material=glossy_sphere
 ))
 
-print("Setting up bright lighting for the room interior...")
+print("Setting up MAXIMUM interior lighting...")
 
-# Much stronger ambient light (like bright fluorescent room lighting)
+# EXTREMELY strong ambient light - like being inside a light box
 rend.lights.append(AmbientLight(
-    intensity=0.6, 
+    intensity=1.0,  # Maximum ambient light
     color=[1.0, 1.0, 1.0]
 ))
 
-# Very strong main ceiling light
+# Very strong ceiling lights pointing down
 rend.lights.append(DirectionalLight(
-    direction=[0, -1, 0], 
-    intensity=1.5, 
+    direction=[0, -1, 0],  # Straight down
+    intensity=1.5,  # Much stronger
     color=[1.0, 1.0, 1.0]
 ))
 
-# Strong secondary lights from multiple angles
 rend.lights.append(DirectionalLight(
-    direction=[-0.5, -0.7, -0.3], 
+    direction=[0.3, -1, 0.2], 
+    intensity=1.0, 
+    color=[1.0, 1.0, 1.0]
+))
+
+rend.lights.append(DirectionalLight(
+    direction=[-0.3, -1, -0.2], 
+    intensity=1.0, 
+    color=[1.0, 1.0, 1.0]
+))
+
+# Add some side lighting to fill shadows
+rend.lights.append(DirectionalLight(
+    direction=[1, -0.5, 0], 
     intensity=0.8, 
     color=[1.0, 1.0, 1.0]
 ))
 
 rend.lights.append(DirectionalLight(
-    direction=[0.5, -0.7, -0.3], 
+    direction=[-1, -0.5, 0], 
     intensity=0.8, 
-    color=[1.0, 1.0, 1.0]
-))
-
-# Additional fill light from behind
-rend.lights.append(DirectionalLight(
-    direction=[0.2, -0.3, 0.8], 
-    intensity=0.5, 
     color=[1.0, 1.0, 1.0]
 ))
 
@@ -223,7 +248,10 @@ print(f"  - 1 disk (metallic)")
 print(f"  - 1 sphere (glossy purple)")
 print(f"  - {len(rend.lights)} lights")
 
-print("\nStarting room render...")
+print("\nStarting room render with safe reflections...")
+
+# Initialize reflection system properly
+rend.reflection_depth = 0
 
 # Use your existing render method
 rend.glRender()
