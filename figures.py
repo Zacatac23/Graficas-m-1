@@ -1,190 +1,107 @@
 import numpy as np
 from intercept import Intercept
 
+# Clase base Shape
 class Shape(object):
     def __init__(self, position, material):
         self.position = position
         self.material = material
-        self.type = "None"
-
+        self.type = "Shape"
+    
     def ray_intersect(self, orig, dir):
         return None
 
+
+# ============= FIGURAS BÁSICAS NECESARIAS =============
+
 class Sphere(Shape):
+    """Esfera básica"""
     def __init__(self, position, radius, material):
         super().__init__(position, material)
         self.radius = radius
         self.type = "Sphere"
     
     def ray_intersect(self, orig, dir):
-        # Asegurarse de trabajar con numpy arrays
-        orig = np.array(orig, dtype=float)
-        dir = np.array(dir, dtype=float)
-
-        # Vector desde el origen del rayo hasta el centro de la esfera
-        dir_length = np.linalg.norm(dir)
-        if dir_length == 0:
-            return None
-        dir = dir / dir_length  # Normalizar la dirección del rayo
-
-        # Vector del origen del rayo al centro de la esfera
-        origin_to_center = np.array(self.position, dtype=float) - orig
-
-        # Proyeccion de que tan lejos esta el punto mas cercano del rayo al centro
-        projection_distance = np.dot(origin_to_center, dir)
-
-        # Distancia perpendicular al cuadrado (usando pitagoras)
-        perpendicular_distance_squared = np.dot(origin_to_center, origin_to_center) - projection_distance ** 2
-        radius_squared = self.radius * self.radius
-
-        # Si el rayo pasa mas lejos que el radio, no hay interseccion
-        if perpendicular_distance_squared > radius_squared:
+        L = np.subtract(self.position, orig)
+        tca = np.dot(L, dir)
+        d = (np.linalg.norm(L) ** 2 - tca ** 2) ** 0.5
+        
+        if d > self.radius:
             return None
         
-        # Distancia desde el punto de proyeccion hasta las intersecciones
-        half_chord_distance = np.sqrt(radius_squared - perpendicular_distance_squared)
-
-        # Las 2 distancias de interseccion
-        near_distance = projection_distance - half_chord_distance
-        far_distance = projection_distance + half_chord_distance
-
-        # Elegir la interseccion mas cercana que este adelante del origen
-        epsilon = 1e-6
-        if near_distance > epsilon:
-            # Calcular punto de impacto y normal
-            hit_point = orig + dir * near_distance
-            normal = (hit_point - np.array(self.position)) / self.radius
-            # Devolver Intercept con toda la info
-            return Intercept(hit_point, normal, near_distance, dir, self)
-    
-        if far_distance > epsilon:
-            # Lo mismo para la intersección lejana
-            hit_point = orig + dir * far_distance
-            normal = (hit_point - np.array(self.position)) / self.radius
-            return Intercept(hit_point, normal, far_distance, dir, self)
+        thc = (self.radius ** 2 - d ** 2) ** 0.5
+        t0 = tca - thc
+        t1 = tca + thc
         
-        # Ambas están detrás del origen
-        return None
+        if t0 < 0:
+            t0 = t1
+        if t0 < 0:
+            return None
+        
+        hit = np.add(orig, t0 * np.array(dir))
+        normal = np.subtract(hit, self.position)
+        normal = normal / np.linalg.norm(normal)
+        
+        return Intercept(point=hit, normal=normal, distance=t0, rayDirection=dir, obj=self)
+
 
 class Plane(Shape):
+    """Plano infinito"""
     def __init__(self, position, normal, material):
         super().__init__(position, material)
-        self.normal = np.array(normal, dtype=float)
-        self.normal = self.normal / np.linalg.norm(self.normal)  # Normalizar
+        self.normal = normal / np.linalg.norm(normal)
         self.type = "Plane"
     
     def ray_intersect(self, orig, dir):
-        orig = np.array(orig, dtype=float)
-        dir = np.array(dir, dtype=float)
-        
-        # Normalizar dirección
-        dir_length = np.linalg.norm(dir)
-        if dir_length == 0:
-            return None
-        dir = dir / dir_length
-        
-        # Verificar si el rayo es paralelo al plano
         denom = np.dot(dir, self.normal)
-        if abs(denom) < 1e-6:
+        
+        if abs(denom) <= 0.0001:
             return None
         
-        # Calcular distancia al plano
-        plane_point = np.array(self.position, dtype=float)
-        t = np.dot((plane_point - orig), self.normal) / denom
+        num = np.dot(np.subtract(self.position, orig), self.normal)
+        t = num / denom
         
-        # Verificar que la intersección esté adelante del origen
-        if t < 1e-6:
+        if t < 0:
             return None
         
-        # Calcular punto de intersección
-        hit_point = orig + t * dir
+        hit = np.add(orig, t * np.array(dir))
         
-        # La normal apunta hacia el lado desde el que viene el rayo
-        normal = self.normal if denom < 0 else -self.normal
-        
-        return Intercept(hit_point, normal, t, dir, self)
+        return Intercept(point=hit, normal=self.normal, distance=t, rayDirection=dir, obj=self)
 
-class Disk(Shape):
-    def __init__(self, position, normal, radius, material):
-        super().__init__(position, material)
-        self.normal = np.array(normal, dtype=float)
-        self.normal = self.normal / np.linalg.norm(self.normal)
-        self.radius = radius
-        self.type = "Disk"
-    
-    def ray_intersect(self, orig, dir):
-        orig = np.array(orig, dtype=float)
-        dir = np.array(dir, dtype=float)
-        
-        # Normalizar dirección
-        dir_length = np.linalg.norm(dir)
-        if dir_length == 0:
-            return None
-        dir = dir / dir_length
-        
-        # Verificar intersección con el plano del disco
-        denom = np.dot(dir, self.normal)
-        if abs(denom) < 1e-6:
-            return None
-        
-        plane_point = np.array(self.position, dtype=float)
-        t = np.dot((plane_point - orig), self.normal) / denom
-        
-        if t < 1e-6:
-            return None
-        
-        # Calcular punto de intersección
-        hit_point = orig + t * dir
-        
-        # Verificar si el punto está dentro del radio del disco
-        distance_from_center = np.linalg.norm(hit_point - plane_point)
-        if distance_from_center > self.radius:
-            return None
-        
-        # La normal apunta hacia el lado desde el que viene el rayo
-        normal = self.normal if denom < 0 else -self.normal
-        
-        return Intercept(hit_point, normal, t, dir, self)
 
 class Triangle(Shape):
-    def __init__(self, v0, v1, v2, material):
-        # Posición es el centroide del triángulo
-        super().__init__([(v0[i] + v1[i] + v2[i])/3 for i in range(3)], material)
-        self.v0 = np.array(v0, dtype=float)
-        self.v1 = np.array(v1, dtype=float)
-        self.v2 = np.array(v2, dtype=float)
+    """Triángulo - Algoritmo Möller-Trumbore"""
+    def __init__(self, vertices, material):
+        self.vertices = vertices
+        self.material = material
+        self.type = "Triangle"
         
-        # Calcular normal usando producto cruzado
-        edge1 = self.v1 - self.v0
-        edge2 = self.v2 - self.v0
+        # Calcular normal del triángulo
+        v0, v1, v2 = vertices
+        edge1 = np.subtract(v1, v0)
+        edge2 = np.subtract(v2, v0)
         self.normal = np.cross(edge1, edge2)
         self.normal = self.normal / np.linalg.norm(self.normal)
-        self.type = "Triangle"
+        self.position = v0
     
     def ray_intersect(self, orig, dir):
-        orig = np.array(orig, dtype=float)
-        dir = np.array(dir, dtype=float)
+        v0, v1, v2 = self.vertices
         
-        # Normalizar dirección
-        dir_length = np.linalg.norm(dir)
-        if dir_length == 0:
-            return None
-        dir = dir / dir_length
-        
-        # Algoritmo de Möller-Trumbore para intersección rayo-triángulo
-        edge1 = self.v1 - self.v0
-        edge2 = self.v2 - self.v0
-        
+        # Algoritmo Möller-Trumbore para intersección rayo-triángulo
+        edge1 = np.subtract(v1, v0)
+        edge2 = np.subtract(v2, v0)
         h = np.cross(dir, edge2)
         a = np.dot(edge1, h)
         
-        if abs(a) < 1e-6:
+        # Rayo paralelo al triángulo
+        if -0.00001 < a < 0.00001:
             return None
         
         f = 1.0 / a
-        s = orig - self.v0
+        s = np.subtract(orig, v0)
         u = f * np.dot(s, h)
         
+        # Verificar coordenadas baricéntricas
         if u < 0.0 or u > 1.0:
             return None
         
@@ -196,42 +113,98 @@ class Triangle(Shape):
         
         t = f * np.dot(edge2, q)
         
-        if t < 1e-6:
+        if t < 0.00001:
             return None
         
-        # Calcular punto de intersección
-        hit_point = orig + t * dir
+        hit = np.add(orig, t * np.array(dir))
         
-        # Determinar orientación de la normal
-        normal = self.normal if np.dot(dir, self.normal) < 0 else -self.normal
-        
-        return Intercept(hit_point, normal, t, dir, self)
+        return Intercept(point=hit, normal=self.normal, distance=t, rayDirection=dir, obj=self)
+
 
 class Cube(Shape):
+    """Cubo - Algoritmo de Axis-Aligned Bounding Box (AABB)"""
     def __init__(self, position, size, material):
         super().__init__(position, material)
         self.size = size
         self.type = "Cube"
+        self.bounds_min = np.array(position) - size/2
+        self.bounds_max = np.array(position) + size/2
+    
+    def ray_intersect(self, orig, dir):
+        orig = np.array(orig)
+        dir = np.array(dir)
         
-        # Definir las 6 caras del cubo como planos
-        pos = np.array(position, dtype=float)
-        half_size = size / 2
+        # Algoritmo AABB (slab method)
+        tmin = (self.bounds_min - orig) / (dir + 1e-10)
+        tmax = (self.bounds_max - orig) / (dir + 1e-10)
         
-        # Crear los 6 planos que forman el cubo
-        self.faces = [
-            # Cara frontal (z+)
-            (pos + [0, 0, half_size], [0, 0, 1]),
-            # Cara trasera (z-)
-            (pos + [0, 0, -half_size], [0, 0, -1]),
-            # Cara derecha (x+)
-            (pos + [half_size, 0, 0], [1, 0, 0]),
-            # Cara izquierda (x-)
-            (pos + [-half_size, 0, 0], [-1, 0, 0]),
-            # Cara superior (y+)
-            (pos + [0, half_size, 0], [0, 1, 0]),
-            # Cara inferior (y-)
-            (pos + [0, -half_size, 0], [0, -1, 0])
-        ]
+        t1 = np.minimum(tmin, tmax)
+        t2 = np.maximum(tmin, tmax)
+        
+        tnear = np.max(t1)
+        tfar = np.min(t2)
+        
+        if tnear > tfar or tfar < 0:
+            return None
+        
+        t = tnear if tnear > 0 else tfar
+        hit = orig + t * dir
+        
+        # Calcular normal basada en la cara que intersecta
+        center = np.array(self.position)
+        normal = hit - center
+        abs_normal = np.abs(normal)
+        max_component = np.max(abs_normal)
+        
+        normal = np.array([
+            1 if abs_normal[0] == max_component else 0,
+            1 if abs_normal[1] == max_component else 0,
+            1 if abs_normal[2] == max_component else 0
+        ]) * np.sign(normal)
+        
+        return Intercept(point=hit, normal=normal, distance=t, rayDirection=dir, obj=self)
+
+
+class Disk(Shape):
+    """Disco circular"""
+    def __init__(self, position, radius, normal, material):
+        super().__init__(position, material)
+        self.radius = radius
+        self.normal = normal / np.linalg.norm(normal)
+        self.type = "Disk"
+    
+    def ray_intersect(self, orig, dir):
+        denom = np.dot(dir, self.normal)
+        
+        if abs(denom) <= 0.0001:
+            return None
+        
+        num = np.dot(np.subtract(self.position, orig), self.normal)
+        t = num / denom
+        
+        if t < 0:
+            return None
+        
+        hit = np.add(orig, t * np.array(dir))
+        
+        # Verificar si está dentro del radio
+        if np.linalg.norm(np.subtract(hit, self.position)) > self.radius:
+            return None
+        
+        return Intercept(point=hit, normal=self.normal, distance=t, rayDirection=dir, obj=self)
+
+
+# ============= NUEVAS FIGURAS DEL LAB =============
+
+class Cylinder(Shape):
+    """
+    NUEVA FIGURA 1: Cilindro infinito a lo largo del eje Y, con límites de altura
+    """
+    def __init__(self, position, radius, height, material):
+        super().__init__(position, material)
+        self.radius = radius
+        self.height = height
+        self.type = "Cylinder"
     
     def ray_intersect(self, orig, dir):
         orig = np.array(orig, dtype=float)
@@ -243,49 +216,123 @@ class Cube(Shape):
             return None
         dir = dir / dir_length
         
-        closest_hit = None
-        min_distance = float('inf')
+        center = np.array(self.position, dtype=float)
+        oc = orig - center
         
-        pos = np.array(self.position, dtype=float)
-        half_size = self.size / 2
+        # Para cilindro en eje Y, resolvemos en plano X-Z
+        # Ecuación del rayo: P = orig + t * dir
+        # Ecuación del cilindro: (x-cx)² + (z-cz)² = r²
         
-        # Verificar intersección con cada cara del cubo
-        for face_center, face_normal in self.faces:
-            face_normal = np.array(face_normal, dtype=float)
-            
-            # Intersección con el plano de la cara
-            denom = np.dot(dir, face_normal)
-            if abs(denom) < 1e-6:
+        # Coeficientes de la ecuación cuadrática
+        a = dir[0]**2 + dir[2]**2
+        b = 2.0 * (oc[0] * dir[0] + oc[2] * dir[2])
+        c = oc[0]**2 + oc[2]**2 - self.radius**2
+        
+        # Resolver ecuación cuadrática
+        discriminant = b**2 - 4*a*c
+        
+        if discriminant < 0:
+            return None  # No hay intersección
+        
+        if abs(a) < 1e-6:
+            return None  # Rayo paralelo al eje del cilindro
+        
+        sqrt_disc = np.sqrt(discriminant)
+        t1 = (-b - sqrt_disc) / (2*a)
+        t2 = (-b + sqrt_disc) / (2*a)
+        
+        epsilon = 1e-6
+        
+        # Verificar ambos puntos de intersección
+        for t in [t1, t2]:
+            if t < epsilon:
                 continue
             
-            t = np.dot((face_center - orig), face_normal) / denom
-            if t < 1e-6:
-                continue
-            
-            # Punto de intersección
+            # Calcular punto de impacto
             hit_point = orig + t * dir
             
-            # Verificar si el punto está dentro de los límites de la cara
-            local_point = hit_point - pos
-            
-            # Determinar qué coordenadas verificar según la normal de la cara
-            if abs(face_normal[0]) > 0.5:  # Cara X
-                if abs(local_point[1]) <= half_size and abs(local_point[2]) <= half_size:
-                    if t < min_distance:
-                        min_distance = t
-                        normal = face_normal if denom < 0 else -face_normal
-                        closest_hit = Intercept(hit_point, normal, t, dir, self)
-            elif abs(face_normal[1]) > 0.5:  # Cara Y
-                if abs(local_point[0]) <= half_size and abs(local_point[2]) <= half_size:
-                    if t < min_distance:
-                        min_distance = t
-                        normal = face_normal if denom < 0 else -face_normal
-                        closest_hit = Intercept(hit_point, normal, t, dir, self)
-            elif abs(face_normal[2]) > 0.5:  # Cara Z
-                if abs(local_point[0]) <= half_size and abs(local_point[1]) <= half_size:
-                    if t < min_distance:
-                        min_distance = t
-                        normal = face_normal if denom < 0 else -face_normal
-                        closest_hit = Intercept(hit_point, normal, t, dir, self)
+            # Verificar si está dentro de los límites de altura
+            local_y = hit_point[1] - center[1]
+            if abs(local_y) <= self.height / 2:
+                # Calcular normal (perpendicular al eje Y)
+                normal_vec = hit_point - center
+                normal_vec[1] = 0  # Proyectar al plano X-Z
+                normal = normal_vec / np.linalg.norm(normal_vec)
+                
+                return Intercept(hit_point, normal, t, dir, self)
         
-        return closest_hit
+        return None
+
+
+class Ellipsoid(Shape):
+    """
+    NUEVA FIGURA 2: Elipsoide con diferentes radios en ejes X, Y, Z
+    """
+    def __init__(self, position, radii, material):
+        super().__init__(position, material)
+        self.radii = np.array(radii, dtype=float)  # [rx, ry, rz]
+        self.type = "Ellipsoid"
+    
+    def ray_intersect(self, orig, dir):
+        orig = np.array(orig, dtype=float)
+        dir = np.array(dir, dtype=float)
+        
+        # Normalizar dirección
+        dir_length = np.linalg.norm(dir)
+        if dir_length == 0:
+            return None
+        dir = dir / dir_length
+        
+        center = np.array(self.position, dtype=float)
+        
+        # Transformar rayo a espacio del elipsoide
+        # Escalar el espacio para que el elipsoide se convierta en esfera unitaria
+        scale = 1.0 / self.radii
+        
+        # Transformar origen y dirección
+        orig_scaled = (orig - center) * scale
+        dir_scaled = dir * scale
+        
+        # Ahora resolver intersección rayo-esfera en espacio escalado
+        # Rayo: P = orig_scaled + t * dir_scaled
+        # Esfera unitaria: |P|² = 1
+        
+        a = np.dot(dir_scaled, dir_scaled)
+        b = 2.0 * np.dot(orig_scaled, dir_scaled)
+        c = np.dot(orig_scaled, orig_scaled) - 1.0
+        
+        discriminant = b**2 - 4*a*c
+        
+        if discriminant < 0:
+            return None
+        
+        sqrt_disc = np.sqrt(discriminant)
+        t1 = (-b - sqrt_disc) / (2*a)
+        t2 = (-b + sqrt_disc) / (2*a)
+        
+        epsilon = 1e-6
+        
+        # Elegir la intersección positiva más cercana
+        for t_scaled in [t1, t2]:
+            if t_scaled < epsilon:
+                continue
+            
+            # Transformar de vuelta al espacio mundial
+            hit_point_scaled = orig_scaled + t_scaled * dir_scaled
+            hit_point = hit_point_scaled / scale + center
+            
+            # Calcular t real en espacio mundial
+            t_world = np.linalg.norm(hit_point - orig)
+            
+            # Calcular normal en espacio mundial
+            # Normal = gradiente de la ecuación del elipsoide
+            # F(x,y,z) = (x-cx)²/rx² + (y-cy)²/ry² + (z-cz)²/rz² - 1
+            # ∇F = [2(x-cx)/rx², 2(y-cy)/ry², 2(z-cz)/rz²]
+            
+            local_point = hit_point - center
+            normal = 2 * local_point / (self.radii**2)
+            normal = normal / np.linalg.norm(normal)
+            
+            return Intercept(hit_point, normal, t_world, dir, self)
+        
+        return None
