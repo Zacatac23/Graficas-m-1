@@ -4,7 +4,7 @@ import sys
 # Import modules
 import gl
 from BMP_Writer import GenerateBMP
-from figures import  Plane,  Triangle, Cube, Cylinder, Ellipsoid
+from figures import  Plane, Triangle, Cube, Cylinder, Ellipsoid
 from lights import AmbientLight, DirectionalLight
 from material import Material
 
@@ -20,7 +20,7 @@ pygame.init()
 screen = pygame.display.set_mode((width, height), pygame.HIDDEN)
 
 rend = Renderer(screen)
-rend.camera.translation = [0, 1, 12]
+rend.camera.translation = [0, 2, 18]  # Cámara más atrás para ver todo
 rend.glClearColor(0.15, 0.2, 0.35)  # Fondo azul oscuro
 
 print("Creating materials...")
@@ -83,17 +83,8 @@ ellipsoid_transparent = Material(
     refractive_index=1.4
 )
 
-# Material para estrella (triángulos)
-star_material = Material(
-    diffuse=[1.0, 0.9, 0.2], 
-    specular=[1.0, 1.0, 0.8], 
-    shininess=100,
-    ambient=[0.2, 0.18, 0.04],
-    reflectivity=0.3
-)
-
-# Material para cubo central
-cube_material = Material(
+# Material ROJO para estrella Y cubo
+red_material = Material(
     diffuse=[0.9, 0.1, 0.1], 
     specular=[0.7, 0.7, 0.7], 
     shininess=80,
@@ -119,106 +110,110 @@ rend.scene.append(Plane(
     material=ground_material
 ))
 
-# ========== 3 CILINDROS (diferentes tamaños, posiciones y materiales) ==========
-print("\nAdding 3 CYLINDERS:")
-print("  1. Opaque Cylinder (orange) - Large, back-left")
+# ========== 3 CILINDROS (LADO IZQUIERDO - MUY SEPARADOS) ==========
+print("\nAdding 3 CYLINDERS (LEFT SIDE):")
+print("  1. Opaque Cylinder (orange) - Back left")
 rend.scene.append(Cylinder(
-    position=[-5, 0, -8], 
+    position=[-8, 0, -12],  # Muy atrás a la izquierda
     radius=1.2, 
     height=5.0, 
     material=cylinder_opaque
 ))
 
-print("  2. Reflective Cylinder (silver) - Medium, center")
+print("  2. Reflective Cylinder (silver) - Middle left")
 rend.scene.append(Cylinder(
-    position=[-2, -0.5, -5], 
+    position=[-6, -0.5, -7],  # Centro izquierda
     radius=0.8, 
     height=3.5, 
     material=cylinder_reflective
 ))
 
-print("  3. Transparent Cylinder (blue glass) - Small, front")
+print("  3. Transparent Cylinder (blue glass) - Front left")
 rend.scene.append(Cylinder(
-    position=[-3.5, 0.5, -3], 
+    position=[-8, 0.5, -3],  # Adelante a la izquierda
     radius=0.6, 
     height=2.5, 
     material=cylinder_transparent
 ))
 
-# ========== 3 ELIPSOIDES (diferentes tamaños, proporciones y materiales) ==========
-print("\nAdding 3 ELLIPSOIDS:")
-print("  1. Opaque Ellipsoid (green) - Stretched horizontally")
+# ========== 3 ELIPSOIDES (LADO DERECHO - MUY SEPARADOS) ==========
+print("\nAdding 3 ELLIPSOIDS (RIGHT SIDE):")
+print("  1. Opaque Ellipsoid (green) - Back right")
 rend.scene.append(Ellipsoid(
-    position=[5, -1, -7], 
-    radii=[2.0, 1.0, 1.0],  # Ancho en X
+    position=[8, -1, -12],  # Muy atrás a la derecha
+    radii=[2.0, 1.0, 1.0],
     material=ellipsoid_opaque
 ))
 
-print("  2. Reflective Ellipsoid (gold) - Tall")
+print("  2. Reflective Ellipsoid (gold) - Middle right")
 rend.scene.append(Ellipsoid(
-    position=[3, 1, -5], 
-    radii=[0.8, 1.8, 0.8],  # Alto en Y
+    position=[6, 1, -7],  # Centro derecha
+    radii=[0.8, 1.8, 0.8],
     material=ellipsoid_reflective
 ))
 
-print("  3. Transparent Ellipsoid (pink glass) - Small, flat")
+print("  3. Transparent Ellipsoid (pink glass) - Front right")
 rend.scene.append(Ellipsoid(
-    position=[4.5, -0.5, -3], 
-    radii=[1.2, 0.5, 1.0],  # Achatado en Y
+    position=[8, -0.5, -3],  # Adelante a la derecha
+    radii=[1.2, 0.5, 1.0],
     material=ellipsoid_transparent
 ))
 
-# ========== ESTRELLA: 4 TRIÁNGULOS ==========
-print("\nAdding STAR (4 triangles):")
-star_center = [0, 2, -5]
-star_size = 1.8
+# ========== CUBO EN EL CENTRO ==========
+print("\nAdding CUBE at CENTER (RED)")
+star_center = [0, 1.5, -7]  # Centro de la escena
+cube_size = 1.5
 
-# Triángulo 1: Punta ARRIBA
-rend.scene.append(Triangle(
-    vertices=[
-        [star_center[0], star_center[1] + star_size, star_center[2]],  # Punta arriba
-        [star_center[0] - star_size*0.3, star_center[1], star_center[2]],  # Izquierda
-        [star_center[0] + star_size*0.3, star_center[1], star_center[2]]   # Derecha
-    ],
-    material=star_material
-))
-
-# Triángulo 2: Punta ABAJO
-rend.scene.append(Triangle(
-    vertices=[
-        [star_center[0], star_center[1] - star_size, star_center[2]],  # Punta abajo
-        [star_center[0] + star_size*0.3, star_center[1], star_center[2]],  # Derecha
-        [star_center[0] - star_size*0.3, star_center[1], star_center[2]]   # Izquierda
-    ],
-    material=star_material
-))
-
-# Triángulo 3: Punta IZQUIERDA
-rend.scene.append(Triangle(
-    vertices=[
-        [star_center[0] - star_size, star_center[1], star_center[2]],  # Punta izquierda
-        [star_center[0], star_center[1] + star_size*0.3, star_center[2]],  # Arriba
-        [star_center[0], star_center[1] - star_size*0.3, star_center[2]]   # Abajo
-    ],
-    material=star_material
-))
-
-# Triángulo 4: Punta DERECHA
-rend.scene.append(Triangle(
-    vertices=[
-        [star_center[0] + star_size, star_center[1], star_center[2]],  # Punta derecha
-        [star_center[0], star_center[1] - star_size*0.3, star_center[2]],  # Abajo
-        [star_center[0], star_center[1] + star_size*0.3, star_center[2]]   # Arriba
-    ],
-    material=star_material
-))
-
-# ========== CUBO EN EL CENTRO DE LA ESTRELLA ==========
-print("  Adding CUBE at star center (red)")
 rend.scene.append(Cube(
-    position=star_center,  # Mismo centro que la estrella
-    size=0.8,  # Tamaño pequeño para no tapar toda la estrella
-    material=cube_material
+    position=star_center,
+    size=cube_size,
+    material=red_material
+))
+
+# ========== ESTRELLA: 4 TRIÁNGULOS ==========
+print("Adding STAR (4 triangles with base = cube face):")
+
+triangle_base = cube_size
+triangle_height = 2.0
+
+# Triángulo ARRIBA
+rend.scene.append(Triangle(
+    vertices=[
+        [star_center[0], star_center[1] + cube_size/2 + triangle_height, star_center[2]],
+        [star_center[0] - triangle_base/2, star_center[1] + cube_size/2, star_center[2]],
+        [star_center[0] + triangle_base/2, star_center[1] + cube_size/2, star_center[2]]
+    ],
+    material=red_material
+))
+
+# Triángulo ABAJO
+rend.scene.append(Triangle(
+    vertices=[
+        [star_center[0], star_center[1] - cube_size/2 - triangle_height, star_center[2]],
+        [star_center[0] + triangle_base/2, star_center[1] - cube_size/2, star_center[2]],
+        [star_center[0] - triangle_base/2, star_center[1] - cube_size/2, star_center[2]]
+    ],
+    material=red_material
+))
+
+# Triángulo IZQUIERDA
+rend.scene.append(Triangle(
+    vertices=[
+        [star_center[0] - cube_size/2 - triangle_height, star_center[1], star_center[2]],
+        [star_center[0] - cube_size/2, star_center[1] + triangle_base/2, star_center[2]],
+        [star_center[0] - cube_size/2, star_center[1] - triangle_base/2, star_center[2]]
+    ],
+    material=red_material
+))
+
+# Triángulo DERECHA
+rend.scene.append(Triangle(
+    vertices=[
+        [star_center[0] + cube_size/2 + triangle_height, star_center[1], star_center[2]],
+        [star_center[0] + cube_size/2, star_center[1] - triangle_base/2, star_center[2]],
+        [star_center[0] + cube_size/2, star_center[1] + triangle_base/2, star_center[2]]
+    ],
+    material=red_material
 ))
 
 print("\nSetting up lighting...")
@@ -247,19 +242,19 @@ rend.lights.append(DirectionalLight(
 ))
 
 print("\n" + "="*60)
-print("SCENE SUMMARY:")
+print("SCENE LAYOUT:")
 print("="*60)
-print("CYLINDERS (3):")
-print("  - Opaque (orange): Large cylinder")
-print("  - Reflective (silver): Medium cylinder")
-print("  - Transparent (blue): Small cylinder")
-print("\nELLIPSOIDS (3):")
-print("  - Opaque (green): Horizontally stretched")
-print("  - Reflective (gold): Vertically tall")
-print("  - Transparent (pink): Flat/squashed")
-print("\nSTAR:")
-print("  - 4 triangles forming a star (yellow/gold)")
-print("  - 1 cube at the center (red)")
+print("LEFT SIDE - 3 CYLINDERS:")
+print("  Back:   Opaque orange cylinder")
+print("  Middle: Reflective silver cylinder")
+print("  Front:  Transparent blue cylinder")
+print("\nCENTER - RED STAR:")
+print("  - Red cube")
+print("  - 4 red triangles forming star")
+print("\nRIGHT SIDE - 3 ELLIPSOIDS:")
+print("  Back:   Opaque green ellipsoid")
+print("  Middle: Reflective gold ellipsoid")
+print("  Front:  Transparent pink ellipsoid")
 print("="*60)
 
 print("\nStarting render...")
@@ -275,17 +270,6 @@ print(f"\n{'='*60}")
 print("RENDER COMPLETE!")
 print(f"{'='*60}")
 print(f"Output: {output_filename}")
-print("\nLAB REQUIREMENTS COMPLETED:")
-print("  ✓ 2 NEW FIGURES implemented:")
-print("    - Cylinder (ray intersect algorithm)")
-print("    - Ellipsoid (ray intersect algorithm)")
-print("  ✓ Each figure rendered 3 times:")
-print("    - With different sizes")
-print("    - With different positions")
-print("    - With different materials (opaque, reflective, transparent)")
-print("  ✓ Star made from 4 triangles")
-print("  ✓ Cube at star center")
-print("  ✓ Custom background color")
 print(f"{'='*60}\n")
 
 pygame.quit()
