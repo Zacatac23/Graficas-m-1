@@ -263,7 +263,155 @@ class Cylinder(Shape):
         
         return None
 
+class Cone(Shape):
+    """
+    Cono con vértice en la parte superior, base circular en la parte inferior
+    Orientado a lo largo del eje Y
+    """
+    def __init__(self, position, radius, height, material):
+        super().__init__(position, material)
+        self.radius = radius
+        self.height = height
+        self.type = "Cone"
+    
+    def ray_intersect(self, orig, dir):
+        orig = np.array(orig, dtype=float)
+        dir = np.array(dir, dtype=float)
+        
+        # Normalizar dirección
+        dir_length = np.linalg.norm(dir)
+        if dir_length == 0:
+            return None
+        dir = dir / dir_length
+        
+        center = np.array(self.position, dtype=float)
+        
+        # El cono está centrado en 'position' con el vértice arriba
+        # Vértice en: center + [0, height/2, 0]
+        # Base en: center - [0, height/2, 0]
+        
+        apex = center + np.array([0, self.height/2, 0])
+        
+        # Vector desde el ápice al origen del rayo
+        co = orig - apex
+        
+        # Ecuación del cono infinito (eje Y)
+        # tan²(α) = (radius/height)²
+        k = (self.radius / self.height) ** 2
+        
+        # Coeficientes de la ecuación cuadrática
+        a = dir[0]**2 + dir[2]**2 - k * dir[1]**2
+        b = 2 * (co[0] * dir[0] + co[2] * dir[2] - k * co[1] * dir[1])
+        c = co[0]**2 + co[2]**2 - k * co[1]**2
+        
+        discriminant = b**2 - 4*a*c
+        
+        if discriminant < 0:
+            return None
+        
+        if abs(a) < 1e-6:
+            return None
+        
+        sqrt_disc = np.sqrt(discriminant)
+        t1 = (-b - sqrt_disc) / (2*a)
+        t2 = (-b + sqrt_disc) / (2*a)
+        
+        epsilon = 1e-6
+        
+        # Verificar ambas intersecciones
+        for t in sorted([t1, t2]):
+            if t < epsilon:
+                continue
+            
+            hit_point = orig + t * dir
+            
+            # Verificar si está dentro de los límites de altura del cono
+            local_y = hit_point[1] - apex[1]
+            
+            # El cono va desde apex (y=0) hasta base (y=-height)
+            if local_y <= 0 and local_y >= -self.height:
+                # Calcular normal
+                # Para un cono, la normal es perpendicular a la superficie
+                local_point = hit_point - apex
+                
+                # Radio en este punto
+                r = np.sqrt(local_point[0]**2 + local_point[2]**2)
+                
+                # Normal del cono
+                if r > epsilon:
+                    normal_x = local_point[0] / r
+                    normal_z = local_point[2] / r
+                    normal_y = self.radius / self.height
+                    
+                    normal = np.array([normal_x, normal_y, normal_z])
+                    normal = normal / np.linalg.norm(normal)
+                else:
+                    # En el vértice, usar normal hacia arriba
+                    normal = np.array([0, 1, 0])
+                
+                return Intercept(hit_point, normal, t, dir, self)
+        
+        return None
 
+
+class Rectangle(Shape):
+    """
+    Rectángulo plano (cuadrilátero)
+    """
+    def __init__(self, corner, width_vec, height_vec, material):
+        """
+        corner: esquina inicial del rectángulo
+        width_vec: vector que define el ancho
+        height_vec: vector que define la altura
+        """
+        super().__init__(corner, material)
+        self.corner = np.array(corner, dtype=float)
+        self.width_vec = np.array(width_vec, dtype=float)
+        self.height_vec = np.array(height_vec, dtype=float)
+        self.type = "Rectangle"
+        
+        # Calcular normal
+        self.normal = np.cross(width_vec, height_vec)
+        self.normal = self.normal / np.linalg.norm(self.normal)
+    
+    def ray_intersect(self, orig, dir):
+        orig = np.array(orig, dtype=float)
+        dir = np.array(dir, dtype=float)
+        
+        # Normalizar dirección
+        dir_length = np.linalg.norm(dir)
+        if dir_length == 0:
+            return None
+        dir = dir / dir_length
+        
+        # Intersección con el plano
+        denom = np.dot(dir, self.normal)
+        
+        if abs(denom) <= 0.0001:
+            return None
+        
+        num = np.dot(np.subtract(self.corner, orig), self.normal)
+        t = num / denom
+        
+        if t < 0:
+            return None
+        
+        hit = orig + t * dir
+        
+        # Verificar si está dentro del rectángulo
+        # Proyectar el punto hit al plano del rectángulo
+        local = hit - self.corner
+        
+        # Proyecciones en los vectores de ancho y altura
+        proj_width = np.dot(local, self.width_vec) / np.dot(self.width_vec, self.width_vec)
+        proj_height = np.dot(local, self.height_vec) / np.dot(self.height_vec, self.height_vec)
+        
+        # Verificar si está dentro de los límites [0, 1]
+        if 0 <= proj_width <= 1 and 0 <= proj_height <= 1:
+            return Intercept(hit, self.normal, t, dir, self)
+        
+        return None
+    
 class Ellipsoid(Shape):
     """
     NUEVA FIGURA 2: Elipsoide con diferentes radios en ejes X, Y, Z
