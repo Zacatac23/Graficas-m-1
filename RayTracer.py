@@ -216,7 +216,7 @@ for i, y_offset in enumerate(band_positions):
 # ========== ESFERAS EN BANDA INFERIOR ==========
 print("[4.5/6] Adding spheres on lower band...")
 # Agregar esferas pequeñas alrededor de la banda inferior
-sphere_count = 8
+sphere_count = 4
 lower_band_y = barrel_center[1] + band_positions[0]  # band_positions[0] es -1.8 (banda inferior)
 for i in range(sphere_count):
     angle = (i / sphere_count) * 2 * 3.14159
