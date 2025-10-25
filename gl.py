@@ -1,222 +1,100 @@
-import numpy as np
-from math import isclose, floor, pi, tan
+import glm # pip install PyGLM
+from OpenGL.GL import *
+from OpenGL.GL.shaders import compileProgram, compileShader
+
 from camera import Camera
-import pygame
-from lights import *
-import random
+from skybox import Skybox
 
 class Renderer(object):
     def __init__(self, screen):
         self.screen = screen
-        _, _, self.width, self.height = screen.get_rect()
-
-        self.camera = Camera()
-        self.glViewport(0, 0, self.width, self.height)
-        self.glProjection()
-
-        self.glColor(1, 1, 1)
-        self.glClearColor(0, 0, 0)
-
-        self.glClear()
-
-        self.scene = [ ]
-
-        self.lights = [ ]
-
-    
-    def glViewport(self, x, y, width, height):
-        self.vpX = round(x)
-        self.vpY = round(y)
-        self.vpWidth = width
-        self.vpHeight = height
-
-        self.viewportMatrix = np.matrix([[width/2, 0, 0, x + width/2],
-                                         [0, height/2, 0, y + height/2],
-                                         [0, 0, 0.5, 0.5],
-                                         [0, 0, 0, 1]])
-    
-    def glProjection(self, n = 0.1, f = 1000, fov = 60):
-        aspectRatio = self.vpWidth / self.vpHeight
-        fov *= pi/180
-        self.topEdge = tan(fov/2) * n
-        self.rightEdge = self.topEdge * aspectRatio
-
-        self.nearPlane = n
-
-        self.projectionMatrix = np.matrix([[n/self.rightEdge, 0, 0, 0],
-                                           [0, n/self.topEdge, 0, 0],
-                                           [0, 0, -(f+n)/(f-n), -(2*f*n)/(f-n)],
-                                           [0, 0, -1, 0]])
+        _,_, self.width, self.height = screen.get_rect()
         
-    def glClearColor(self, r, g, b):
-        #los valores de r, g, b deben estar entre 0 y 1
-        r = min(1, max(0, r))
-        g = min(1, max(0, g))
-        b = min(1, max(0, b))
+        glClearColor(0.2, 0.2, 0.2, 1.0)
 
-        self.ClearColor = [r,g,b]
-    
-    def glColor(self, r, g, b):
-        #los valores de r, g, b deben estar entre 0 y 1
-        r = min(1, max(0, r))
-        g = min(1, max(0, g))
-        b = min(1, max(0, b))
+        glEnable(GL_DEPTH_TEST)
+        glViewport(0,0, self.width, self.height)
 
-        #curr para el color actual
-        self.currColor = [r,g,b]
-    
-    def glClear(self):
-        #compresion de listas
-        color = [int(i * 255) for i in self.ClearColor]
-        self.screen.fill(color)
+        self.camera = Camera(self.width, self.height)
 
-        self.frameBuffer = [[color for y in range(self.height)]
-                            for x in range(self.width)]
+        self.scene = []
         
-        self.zBuffer = [[float('inf') for y in range(self.height)]
-                            for x in range(self.width)]
-    
-    def glPoint(self, x, y, color = None):
-        
-        x = round(x)
-        y = round(y)
 
-        if (0 <= x < self.width) and (0 <= y < self.height):
-             color = [int(i * 255) for i in (color or self.currColor)]
-             self.screen.set_at((x, self.height - y - 1), color)
+        self.filledMode = False
+        self.ToggleFilledMode()
 
-             self.frameBuffer[x][y] = color
+        self.activeShader = None
 
-    def glLine(self, p0, p1, color = None):
-        # y = mx + b
+        self.skybox = None
 
-        #Algoritmo de linea de Bresenham
-        x0 = p0[0]
-        x1 = p1[0]
-        y0 = p0[1]
-        y1 = p1[1] 
-        
-        #Revisar si el punto es igual que el punto 1, solamente dibujar un punto. Para evitar division por cero
-        if x0 == x1 and y0 == y1:
-            self.glPoint(x0, y0)
-            return
-        
-        #En vez de sacar las pendientes, sacamos los deltas
-        dy = abs(y1 - y0)
-        dx = abs(x1 - x0)
+        self.pointLight = glm.vec3(0,0,0)
+        self.ambientLight = 0.1
 
-        #steep corresponde a inclinaciÃ³n
-        steep = dy > dx
-        #Si la inclinaciÃ³n es mayor a 1, intercambiamos los puntos
-        if steep:
-            x0, y0 = y0, x0
-            x1, y1 = y1, x1
 
-        #Cuando algo va de derecha a izquierda
-        if x0 > x1:
-            x0, x1 = x1, x0
-            y0, y1 = y1, y0
-        
-        #Volver a calcular los deltas
-        dy = abs(y1 - y0)
-        dx = abs(x1 - x0)
+        self.value = 0.0;
+        self.elapsedTime = 0.0;
 
-        #Ahora ya podemos dibujar las lineas
-        #Pero antes de dibujar las lineas, tenemos que calcular algunas cosas extra
 
-        #1. el offset, el offset se refiere a cuanto eh subido en la linea
-        offset = 0
-        #2. el limite, se refiere a partir de que punto se va a dibujar la siguiente linea o siguiente fila de pixeles
-        limit = 0
-        #3. la pendiente, que es la diferencia entre los deltas
-        m = dy / dx
-        #4.valor en y actualmente
-        y = y0
 
-        #Asegurarse de que los valores de x que se pasan tambiÃ©n son enteros
-        for x in range(round(x0), round(x1) + 1):
-            #Si la inclinaciÃ³n es mayor a 1, entonces tenemos que intercambiar los valores de x e y
-            if steep:
-                self.glPoint(y, x, color or self.currColor)
-            else:
-                self.glPoint(x, y, color or self.currColor) 
+    def CreateSkybox(self, textureList):
+        self.skybox = Skybox(textureList)
+        self.skybox.cameraRef = self.camera
 
-            #Aumentar el offset
-            offset += m
 
-            #Si el offset es mayor al limite, entonces tenemos que aumentar el valor de y
-            if offset >= limit:
-                if y0 < y1:
-                    y += 1
-                else:
-                    y -= 1
+    def ToggleFilledMode(self):
+        self.filledMode = not self.filledMode
 
-                #Aumentar el limite, para pasar a la siguiente fila de pixeles
-                limit += 1
-    
-    def glRender(self):
-        # Render all pixels directly to frameBuffer (no display updates)
-        total_pixels = self.vpWidth * self.vpHeight
-        rendered_pixels = 0
-        
-        print(f"Rendering {total_pixels} pixels...")
-        
-        for i in range(self.vpWidth):
-            for j in range(self.vpHeight):
-                x = i + self.vpX
-                y = j + self.vpY
+        if self.filledMode:
+            glEnable(GL_CULL_FACE)
+            glPolygonMode(GL_FRONT, GL_FILL)
+        else:
+            glDisable(GL_CULL_FACE)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
 
-                if 0 <= x < self.width and 0 <= y < self.height:
-                    # Convert screen coordinates to normalized device coordinates
-                    pX = ((x + 0.5 - self.vpX) / self.vpWidth) * 2 - 1
-                    pY = ((y + 0.5 - self.vpY) / self.vpHeight) * 2 - 1
 
-                    # Apply projection
-                    pX *= self.rightEdge
-                    pY *= self.topEdge
-                    pZ = -self.nearPlane
+    def SetShaders(self, vertexShader, fragmentShader):
+        if vertexShader is not None and fragmentShader is not None:
+            self.activeShader = compileProgram( compileShader(vertexShader, GL_VERTEX_SHADER),
+                                                compileShader(fragmentShader, GL_FRAGMENT_SHADER) )
+        else:
+            self.activeShader = None
 
-                    # Create ray direction
-                    dir = np.array([pX, pY, pZ], dtype=float)
-                    dir = dir / np.linalg.norm(dir)  # Normalize
 
-                    # Cast ray from camera position
-                    hit = self.glCastRay(self.camera.translation, dir)
+    def Render(self):
+        glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT )
 
-                    if hit and hit.obj.material:
-                        color = hit.obj.material.GetSurfaceColor(hit, self)
-                        # Store color in frameBuffer only (no screen update)
-                        color_255 = [int(c * 255) for c in color]
-                        self.frameBuffer[x][y] = color_255
-                    else:
-                        # Background color
-                        color_255 = [int(c * 255) for c in self.ClearColor]
-                        self.frameBuffer[x][y] = color_255
-                
-                rendered_pixels += 1
-                
-                # Show progress every 10%
-                if rendered_pixels % (total_pixels // 10) == 0:
-                    progress = (rendered_pixels / total_pixels) * 100
-                    print(f"Progress: {progress:.0f}% ({rendered_pixels}/{total_pixels} pixels)")
-        
-        print("Rendering complete!")
-    
+        self.camera.Update()
 
-    
-    def glCastRay(self, origin, direction, sceneObj = None):
+        if self.skybox is not None:
+            self.skybox.Render()
 
-        depth = float('inf')
-        intercept = None
-        hit = None
+
+        if self.activeShader is not None:
+            glUseProgram(self.activeShader)
+
+            glUniformMatrix4fv( glGetUniformLocation(self.activeShader, "viewMatrix"),
+                                1, GL_FALSE, glm.value_ptr(self.camera.viewMatrix) )
+
+            glUniformMatrix4fv( glGetUniformLocation(self.activeShader, "projectionMatrix"),
+                                1, GL_FALSE, glm.value_ptr(self.camera.projectionMatrix) )
+
+            glUniform3fv( glGetUniformLocation(self.activeShader, "pointLight"), 1, glm.value_ptr(self.pointLight) )
+            glUniform1f( glGetUniformLocation(self.activeShader, "ambientLight"), self.ambientLight )
+
+            glUniform1f( glGetUniformLocation(self.activeShader, "value"), self.value )
+            glUniform1f( glGetUniformLocation(self.activeShader, "time"), self.elapsedTime )
+
+
+            glUniform1i( glGetUniformLocation(self.activeShader, "tex0"), 0)
+            glUniform1i( glGetUniformLocation(self.activeShader, "tex1"), 1)
+
+
 
         for obj in self.scene:
-            if obj != sceneObj:
-                intercept = obj.ray_intersect(origin, direction)
-                if intercept != None:
-                    if intercept.distance < depth:
-                        hit = intercept
-                        depth = intercept.distance
-        return hit
-    
-    
+
+            if self.activeShader is not None:
+                glUniformMatrix4fv( glGetUniformLocation(self.activeShader, "modelMatrix"),
+                                1, GL_FALSE, glm.value_ptr( obj.GetModelMatrix() ) )
+
+            obj.Render()
+

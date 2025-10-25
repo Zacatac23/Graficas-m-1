@@ -1,22 +1,39 @@
-from MathLib import *
+import glm
 
 class Camera(object):
-    def __init__(self):
+	def __init__(self, width, height):
 
-        self.translation = [0,0,0]
-        self.rotation = [0,0,0]
-    
-    def GetCamMatrix(self):
-        translateMat = TranslationMatrix(self.translation[0],
-                                         self.translation[1],
-                                         self.translation[2])
+		self.screenWidth = width
+		self.screenHeight = height
+		
+		self.position = glm.vec3(0,0,0)
 
-        rotateMat = RotationMatrix(self.rotation[0],
-                                   self.rotation[1],
-                                   self.rotation[2])
+		# Angulos de Euler
+		self.rotation = glm.vec3(0,0,0)
+
+		self.viewMatrix = None
+
+		self.CreateProjectionMatrix(60, 0.1, 1000)
 
 
-        return translateMat * rotateMat
-    
-    def GetViewMatrix(self):
-        return np.linalg.inv(self.GetCamMatrix())
+	def Update(self):
+		# M = T * R
+		# R = pitchMat * yawMat * rollMat
+
+		identity = glm.mat4(1)
+
+		translateMat = glm.translate(identity, self.position)
+
+		pitchMat = glm.rotate(identity, glm.radians(self.rotation.x), glm.vec3(1,0,0))
+		yawMat =   glm.rotate(identity, glm.radians(self.rotation.y), glm.vec3(0,1,0))
+		rollMat =  glm.rotate(identity, glm.radians(self.rotation.z), glm.vec3(0,0,1))
+
+		rotationMat = pitchMat * yawMat * rollMat
+
+		camMat = translateMat * rotationMat
+
+		self.viewMatrix = glm.inverse(camMat)
+
+
+	def CreateProjectionMatrix(self, fov, nearPlane, farPlane):
+		self.projectionMatrix = glm.perspective( glm.radians(fov), self.screenWidth / self.screenHeight, nearPlane, farPlane)
