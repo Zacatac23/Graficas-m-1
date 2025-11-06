@@ -9,6 +9,7 @@ from buffer import Buffer
 from model import Model
 from nuevos_vertex_shaders import *
 from nuevos_fragment_shaders import *
+from PIL import Image
 
 # Importamos los nuevos shaders
 from nuevos_vertex_shaders import pulse_vertex_shader, twist_vertex_shader, noise_displacement_vertex_shader
@@ -55,117 +56,27 @@ rend.scene.append(modelo)
 
 # Variables para controlar la configuración de shaders
 shader_name = "Default Shader"
-isRunning = True
 
-while isRunning:
+# Modo: en vez de mostrar render en vivo, renderizamos un solo frame y guardamos una imagen.
+# Si quieres volver al modo interactivo, reemplaza este bloque por el bucle original.
 
-    deltaTime = clock.tick(60) / 1000
-    rend.elapsedTime += deltaTime
+# Renderizamos un frame
+deltaTime = clock.tick(60) / 1000
+rend.elapsedTime += deltaTime
 
-    keys = pygame.key.get_pressed()
+# Aplicamos una rotación final al modelo para la captura
+modelo.rotation.y += 15 * deltaTime
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            isRunning = False
+rend.Render()
 
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_f:
-                rend.ToggleFilledMode()
+# Leemos el framebuffer y guardamos la imagen usando Pillow
+from OpenGL.GL import glReadPixels, GL_RGB, GL_UNSIGNED_BYTE
 
-            # ================ CONFIGURACIÓN DE FRAGMENT SHADERS ================
-            
-            
-            # Nuevos fragment shaders
-            if event.key == pygame.K_5:
-                currFragmentShader = hologram_shader
-                shader_name = "Hologram Shader"
-                rend.SetShaders(currVertexShader, currFragmentShader)
-                
-            if event.key == pygame.K_6:
-                currFragmentShader = thermal_shader
-                shader_name = "Thermal Vision Shader"
-                rend.SetShaders(currVertexShader, currFragmentShader)
-                
-            if event.key == pygame.K_7:
-                currFragmentShader = cartoon_shader
-                shader_name = "Cartoon Shader"
-                rend.SetShaders(currVertexShader, currFragmentShader)
-                
-            if event.key == pygame.K_8:
-                currFragmentShader = pixel_shader
-                shader_name = "Pixel Art Shader"
-                rend.SetShaders(currVertexShader, currFragmentShader)
-
-            # ================ CONFIGURACIÓN DE VERTEX SHADERS ================
-            
-            # Vertex shaders originales
-            
-            # Nuevos vertex shaders
-            if event.key == pygame.K_KP4:
-                currVertexShader = pulse_vertex_shader
-                shader_name = "Pulse Vertex Shader + " + shader_name.split("+")[0]
-                rend.SetShaders(currVertexShader, currFragmentShader)
-                
-            if event.key == pygame.K_KP5:
-                currVertexShader = twist_vertex_shader
-                shader_name = "Twist Vertex Shader + " + shader_name.split("+")[0]
-                rend.SetShaders(currVertexShader, currFragmentShader)
-                
-            if event.key == pygame.K_KP6:
-                currVertexShader = noise_displacement_vertex_shader
-                shader_name = "Noise Displacement Vertex Shader + " + shader_name.split("+")[0]
-                rend.SetShaders(currVertexShader, currFragmentShader)
-
-    # Control de cámara
-    if keys[K_UP]:
-        rend.camera.position.z += 1 * deltaTime
-
-    if keys[K_DOWN]:
-        rend.camera.position.z -= 1 * deltaTime
-
-    if keys[K_RIGHT]:
-        rend.camera.position.x += 1 * deltaTime
-
-    if keys[K_LEFT]:
-        rend.camera.position.x -= 1 * deltaTime
-
-    # Control de luz
-    if keys[K_w]:
-        rend.pointLight.z -= 10 * deltaTime
-
-    if keys[K_s]:
-        rend.pointLight.z += 10 * deltaTime
-
-    if keys[K_a]:
-        rend.pointLight.x -= 10 * deltaTime
-
-    if keys[K_d]:
-        rend.pointLight.x += 10 * deltaTime
-
-    if keys[K_q]:
-        rend.pointLight.y -= 10 * deltaTime
-
-    if keys[K_e]:
-        rend.pointLight.y += 10 * deltaTime
-
-    # Control del parámetro value (para shaders que lo utilizan)
-    if keys[K_z]:
-        if rend.value > 0.0:
-            rend.value -= 1 * deltaTime
-
-    if keys[K_x]:
-        if rend.value < 1.0:
-            rend.value += 1 * deltaTime
-
-    # Rotación del modelo
-    modelo.rotation.y += 15 * deltaTime  # Velocidad de rotación reducida para mejor visualización
-
-    # Render de la escena
-    rend.Render()
-    
-    # Mostrar nombre del shader activo
-    pygame.display.set_caption(f"Laboratorio de Shaders - {shader_name} - Value: {rend.value:.2f}")
-    
-    pygame.display.flip()
+data = glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE)
+image = Image.frombytes("RGB", (width, height), data)
+image = image.transpose(Image.FLIP_TOP_BOTTOM)
+output_path = "render_output.png"
+image.save(output_path)
+print(f"Imagen guardada en: {output_path}")
 
 pygame.quit()
