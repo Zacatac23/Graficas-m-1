@@ -16,6 +16,28 @@ class Model(object):
 
 		self.BuildBuffers()
 
+		# Compute bounding box and bounding sphere radius from loaded vertices
+		if len(self.objFile.vertices) > 0:
+			xs = [v[0] for v in self.objFile.vertices]
+			ys = [v[1] for v in self.objFile.vertices]
+			zs = [v[2] for v in self.objFile.vertices]
+			self.bounds_min = glm.vec3(min(xs), min(ys), min(zs))
+			self.bounds_max = glm.vec3(max(xs), max(ys), max(zs))
+			self.bounds_center = (self.bounds_min + self.bounds_max) / 2.0
+			# radius: max distance from center to any vertex
+			maxd = 0.0
+			for v in self.objFile.vertices:
+				vx = glm.vec3(v[0], v[1], v[2])
+				d = glm.length(vx - self.bounds_center)
+				if d > maxd:
+					maxd = d
+			self.bounds_radius = maxd
+		else:
+			self.bounds_min = glm.vec3(0,0,0)
+			self.bounds_max = glm.vec3(0,0,0)
+			self.bounds_center = glm.vec3(0,0,0)
+			self.bounds_radius = 1.0
+
 		self.textures = []
 
 	def GetModelMatrix(self):
@@ -130,6 +152,15 @@ class Model(object):
 		glDisableVertexAttribArray(0)
 		glDisableVertexAttribArray(1)
 		glDisableVertexAttribArray(2)
+
+
+	def GetCenter(self):
+		"""Return the model's local-space center as glm.vec3."""
+		return self.bounds_center
+
+	def GetBoundingRadius(self):
+		"""Return bounding sphere radius in model local units."""
+		return self.bounds_radius
 
 
 

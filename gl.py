@@ -92,9 +92,10 @@ class Renderer(object):
 
         for obj in self.scene:
 
-            if self.activeShader is not None:
+            if self.activeShader is not None and hasattr(obj, 'GetModelMatrix'):
                 glUniformMatrix4fv( glGetUniformLocation(self.activeShader, "modelMatrix"),
                                 1, GL_FALSE, glm.value_ptr( obj.GetModelMatrix() ) )
 
+            # Each object is responsible for binding its own shader or textures inside Render()
             obj.Render()
 
