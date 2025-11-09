@@ -6,6 +6,44 @@ import glm
 
 import pygame
 
+# module-level cached 1x1 white texture used as a fallback when a model has no textures
+_DEFAULT_WHITE_TEXTURE = None
+
+def _get_default_white_texture():
+	global _DEFAULT_WHITE_TEXTURE
+	if _DEFAULT_WHITE_TEXTURE is not None:
+		return _DEFAULT_WHITE_TEXTURE
+
+	# create a 1x1 white texture
+	tex = glGenTextures(1)
+	glBindTexture(GL_TEXTURE_2D, tex)
+	white_pixel = (GLubyte * 3)(255, 255, 255)
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_RGB, GL_UNSIGNED_BYTE, white_pixel)
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+
+	_DEFAULT_WHITE_TEXTURE = tex
+	return _DEFAULT_WHITE_TEXTURE
+
+
+def CreateColorTexture(rgb):
+	"""Create and return a 1x1 GL texture filled with RGB tuple (0..1 floats).
+	Returns the GL texture handle.
+	"""
+	r = int(max(0, min(1, rgb[0])) * 255)
+	g = int(max(0, min(1, rgb[1])) * 255)
+	b = int(max(0, min(1, rgb[2])) * 255)
+	tex = glGenTextures(1)
+	glBindTexture(GL_TEXTURE_2D, tex)
+	pixel = (GLubyte * 3)(r, g, b)
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_RGB, GL_UNSIGNED_BYTE, pixel)
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+	return tex
+
+
+
+
 class Model(object):
 	def __init__(self, filename):
 		self.objFile = Obj(filename)
@@ -16,29 +54,15 @@ class Model(object):
 
 		self.BuildBuffers()
 
-		# Compute bounding box and bounding sphere radius from loaded vertices
-		if len(self.objFile.vertices) > 0:
-			xs = [v[0] for v in self.objFile.vertices]
-			ys = [v[1] for v in self.objFile.vertices]
-			zs = [v[2] for v in self.objFile.vertices]
-			self.bounds_min = glm.vec3(min(xs), min(ys), min(zs))
-			self.bounds_max = glm.vec3(max(xs), max(ys), max(zs))
-			self.bounds_center = (self.bounds_min + self.bounds_max) / 2.0
-			# radius: max distance from center to any vertex
-			maxd = 0.0
-			for v in self.objFile.vertices:
-				vx = glm.vec3(v[0], v[1], v[2])
-				d = glm.length(vx - self.bounds_center)
-				if d > maxd:
-					maxd = d
-			self.bounds_radius = maxd
-		else:
-			self.bounds_min = glm.vec3(0,0,0)
-			self.bounds_max = glm.vec3(0,0,0)
-			self.bounds_center = glm.vec3(0,0,0)
-			self.bounds_radius = 1.0
-
 		self.textures = []
+
+		# textures start empty; models can be populated explicitly by the caller
+
+		self.visible = True
+
+		# shader program assigned to this model (GL program handle). If None, renderer uses its activeShader.
+		self.shaderProgram = None
+
 
 	def GetModelMatrix(self):
 
@@ -65,18 +89,56 @@ class Model(object):
 
 		self.vertexCount = 0
 
-		for face in self.objFile.faces:
+		# precompute vertex bounds for fallback planar UVs (X,Z projection)
+		if len(self.objFile.vertices) > 0:
+			xs = [v[0] for v in self.objFile.vertices]
+			zs = [v[2] for v in self.objFile.vertices]
+			minx = min(xs); maxx = max(xs)
+			minz = min(zs); maxz = max(zs)
+			range_x = maxx - minx if (maxx - minx) != 0 else 1.0
+			range_z = maxz - minz if (maxz - minz) != 0 else 1.0
+		else:
+			minx = minz = 0.0
+			range_x = range_z = 1.0
 
+		for face in self.objFile.faces:
 			facePositions = []
 			faceTexCoords = []
 			faceNormals = []
 
-			for i in range(len(face)):
-				facePositions.append( self.objFile.vertices [ face[i][0] - 1 ] )
-				faceTexCoords.append( self.objFile.texCoords[ face[i][1] - 1 ] )
-				faceNormals.append( self.objFile.normals[ face[i][2] - 1 ] )
+			# helper to resolve obj indices (handles negative indices)
+			def resolve_index(container, idx):
+				if idx == 0:
+					return None
+				if idx > 0:
+					i = idx - 1
+				else:
+					# negative index: relative to end
+					i = len(container) + idx
+				if i < 0 or i >= len(container):
+					return None
+				return container[i]
+
+			for j in range(len(face)):
+				v_idx, vt_idx, vn_idx = face[j][0], face[j][1], face[j][2]
+				pos = resolve_index(self.objFile.vertices, v_idx)
+				if pos is None:
+					pos = [0.0, 0.0, 0.0]
+				facePositions.append(pos)
+
+				tex = resolve_index(self.objFile.texCoords, vt_idx)
+				if tex is None:
+					# Fallback: generate planar UVs from X/Z coordinates
+					tex = [ (pos[0] - minx) / range_x, (pos[2] - minz) / range_z ]
+				faceTexCoords.append(tex)
+
+				norm = resolve_index(self.objFile.normals, vn_idx)
+				if norm is None:
+					norm = [0.0, 0.0, 1.0]
+				faceNormals.append(norm)
 
 
+			# push triangle vertices (first three)
 			for value in facePositions[0]: positions.append(value)
 			for value in facePositions[1]: positions.append(value)
 			for value in facePositions[2]: positions.append(value)
@@ -106,28 +168,41 @@ class Model(object):
 
 				self.vertexCount += 3
 
-
 		self.posBuffer = Buffer(positions)
 		self.texCoordsBuffer = Buffer(texCoords)
 		self.normalsBuffer = Buffer(normals)
 
 
 	def AddTexture(self, filename):
-		textureSurface = pygame.image.load(filename)
-		textureData = pygame.image.tostring(textureSurface, "RGB", True)
+		# Try to load with Pillow to avoid libpng iCCP warnings on some PNGs
+		# If Pillow is not available, fall back to pygame.image.load
+		try:
+			from PIL import Image
+			im = Image.open(filename).convert('RGB')
+			width, height = im.size
+			# Pillow returns top-to-bottom; match previous pygame behavior which flipped vertically
+			im = im.transpose(Image.FLIP_TOP_BOTTOM)
+			# Pillow returns bytes in row-major RGB order
+			textureData = im.tobytes('raw', 'RGB')
+		except Exception:
+			# fallback to pygame (existing behavior)
+			textureSurface = pygame.image.load(filename)
+			width = textureSurface.get_width()
+			height = textureSurface.get_height()
+			textureData = pygame.image.tostring(textureSurface, "RGB", True)
 
 		texture = glGenTextures(1)
 		glBindTexture(GL_TEXTURE_2D, texture)
 
 		glTexImage2D(GL_TEXTURE_2D,
-					 0,
-					 GL_RGB,
-					 textureSurface.get_width(),
-					 textureSurface.get_height(),
-					 0,
-					 GL_RGB,
-					 GL_UNSIGNED_BYTE,
-					 textureData)
+				  0,
+				  GL_RGB,
+				  width,
+				  height,
+				  0,
+				  GL_RGB,
+				  GL_UNSIGNED_BYTE,
+				  textureData)
 
 		glGenerateMipmap(GL_TEXTURE_2D)
 
@@ -136,10 +211,30 @@ class Model(object):
 
 	def Render(self):
 
+		if not self.visible:
+			return
+
 		# Dar la textura
-		for i in range(len(self.textures)):
-			glActiveTexture(GL_TEXTURE0 + i)
-			glBindTexture(GL_TEXTURE_2D, self.textures[i])
+		# Bind textures with sensible fallbacks so fragment shaders that expect
+		# tex0 and tex1 always have something bound.
+		default_tex = _get_default_white_texture()
+		if len(self.textures) == 0:
+			# no textures: bind white to both tex0 and tex1
+			glActiveTexture(GL_TEXTURE0)
+			glBindTexture(GL_TEXTURE_2D, default_tex)
+			glActiveTexture(GL_TEXTURE1)
+			glBindTexture(GL_TEXTURE_2D, default_tex)
+		elif len(self.textures) == 1:
+			# one texture: bind it to tex0 and white to tex1
+			glActiveTexture(GL_TEXTURE0)
+			glBindTexture(GL_TEXTURE_2D, self.textures[0])
+			glActiveTexture(GL_TEXTURE1)
+			glBindTexture(GL_TEXTURE_2D, default_tex)
+		else:
+			# two or more textures: bind them to successive units
+			for i in range(len(self.textures)):
+				glActiveTexture(GL_TEXTURE0 + i)
+				glBindTexture(GL_TEXTURE_2D, self.textures[i])
 
 
 		self.posBuffer.Use(0, 3)
@@ -152,15 +247,6 @@ class Model(object):
 		glDisableVertexAttribArray(0)
 		glDisableVertexAttribArray(1)
 		glDisableVertexAttribArray(2)
-
-
-	def GetCenter(self):
-		"""Return the model's local-space center as glm.vec3."""
-		return self.bounds_center
-
-	def GetBoundingRadius(self):
-		"""Return bounding sphere radius in model local units."""
-		return self.bounds_radius
 
 
 

@@ -1,5 +1,8 @@
-PyOpenGL
+# Pin recommended versions where observed in this environment
+pygame==2.6.1
+PyOpenGL==3.1.10
 PyGLM
-pygame
 Pillow
-numpy
+
+# Optional: if you prefer looser pins, install without exact versions:
+# pip install "pygame>=2.0" "PyOpenGL>=3.1" "PyGLM>=2.0" "Pillow>=9.0"
