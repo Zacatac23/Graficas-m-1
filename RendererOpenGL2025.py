@@ -35,6 +35,101 @@ screen = pygame.display.set_mode((width, height), pygame.DOUBLEBUF | pygame.OPEN
 pygame.display.set_caption("Demo Shaders OpenGL - Proyecto Avanzado")
 clock = pygame.time.Clock()
 
+# Inicializar fuente para el menú
+pygame.font.init()
+font = pygame.font.SysFont('Arial', 16)
+font_title = pygame.font.SysFont('Arial', 20, bold=True)
+font_small = pygame.font.SysFont('Arial', 14)
+
+# Inicializar sistema de audio
+pygame.mixer.init()
+musicPlaying = False
+musicPaused = False
+
+# Cargar efectos de sonido
+soundEffects = {}
+try:
+    # Crear carpeta de sonidos si no existe
+    if not os.path.exists("sounds"):
+        os.makedirs("sounds")
+        print("📁 Carpeta 'sounds/' creada")
+    
+    # Intentar cargar sonidos específicos para cada modelo
+    sound_names = ['cree', 'pick', 'sword', 'buck']
+    
+    for sound_name in sound_names:
+        # Buscar el archivo con extensión .wav, .mp3 o .ogg
+        sound_loaded = False
+        for ext in ['.mp3', '.wav', '.ogg']:
+            sound_path = os.path.join("sounds", sound_name + ext)
+            if os.path.exists(sound_path):
+                try:
+                    soundEffects[sound_name] = pygame.mixer.Sound(sound_path)
+                    soundEffects[sound_name].set_volume(0.5)
+                    print(f"🔊 Sonido cargado: {sound_name}{ext}")
+                    sound_loaded = True
+                    break
+                except Exception as e:
+                    print(f"⚠ Error al cargar {sound_name}{ext}: {e}")
+        
+        if not sound_loaded:
+            print(f"⚠ No se encontró: {sound_name}.mp3/.wav/.ogg")
+    
+    # Si no hay sonidos, generar sonido sintético simple
+    if not soundEffects:
+        print("⚠ No se encontraron archivos de sonido en 'sounds/'")
+        print("  Coloca archivos: creeper.wav, pickaxe.wav, sword.wav, bucket.wav")
+        print("  Generando sonido genérico...")
+        
+        # Generar sonido genérico (beep corto)
+        duration = 0.1
+        frequency = 800
+        sample_rate = 22050
+        n_samples = int(round(duration * sample_rate))
+        
+        # Crear array de sonido
+        import numpy as np
+        buf = np.sin(2 * np.pi * frequency * np.linspace(0, duration, n_samples))
+        buf = (buf * 32767).astype(np.int16)
+        
+        # Crear sonido para pygame
+        sound = pygame.sndarray.make_sound(buf)
+        sound.set_volume(0.3)
+        
+        # Usar el mismo sonido para todos
+        soundEffects['cree'] = sound
+        soundEffects['pick'] = sound
+        soundEffects['sword'] = sound
+        soundEffects['buck'] = sound
+        print("✓ Sonido genérico asignado a todos los modelos")
+
+except Exception as e:
+    print(f"⚠ Error al cargar efectos de sonido: {e}")
+    print("  El programa continuará sin efectos de sonido")
+
+# Intentar cargar música de fondo
+try:
+    # Buscar archivos de música en la carpeta music/
+    music_files = []
+    if os.path.exists("music"):
+        for file in os.listdir("music"):
+            if file.endswith(('.mp3', '.ogg', '.wav')):
+                music_files.append(os.path.join("music", file))
+    
+    if music_files:
+        pygame.mixer.music.load(music_files[0])
+        pygame.mixer.music.set_volume(0.3)  # Volumen al 30%
+        pygame.mixer.music.play(-1)  # -1 = loop infinito
+        musicPlaying = True
+        print(f"♪ Música cargada: {music_files[0]}")
+        print("  Controles: [Y] Pausar/Reanudar | [+/-] Volumen")
+    else:
+        print("⚠ No se encontró música en la carpeta 'music/'")
+        print("  Coloca archivos .mp3, .ogg o .wav en la carpeta 'music/' para reproducir música")
+except Exception as e:
+    print(f"⚠ No se pudo cargar la música: {e}")
+    musicPlaying = False
+
 # Inicializar el renderer
 rend = Renderer(screen)
 rend.pointLight = glm.vec3(1, 1, 1)
@@ -79,12 +174,31 @@ rend.SetPostProcessingShaders(vertex_postProcess, none_postProcess)
 
 # Cargar skybox si existe
 try:
-    skyboxTextures = ["skybox/right.jpg", "skybox/left.jpg", 
-                      "skybox/top.jpg", "skybox/bottom.jpg", 
-                      "skybox/front.jpg", "skybox/back.jpg"]
-    rend.CreateSkybox(skyboxTextures)
+    # Buscar archivos con extensión .jpg o .png
+    skybox_names = ["right", "left", "top", "bottom", "front", "back"]
+    skyboxTextures = []
+    
+    for name in skybox_names:
+        # Buscar primero .png, luego .jpg
+        if os.path.exists(f"skybox/{name}.png"):
+            skyboxTextures.append(f"skybox/{name}.png")
+        elif os.path.exists(f"skybox/{name}.jpg"):
+            skyboxTextures.append(f"skybox/{name}.jpg")
+        else:
+            print(f"⚠ No se encontró: skybox/{name}.png ni skybox/{name}.jpg")
+            skyboxTextures = []
+            break
+    
+    if len(skyboxTextures) == 6:
+        rend.CreateSkybox(skyboxTextures)
+        print(f"✓ Skybox cargado correctamente ({skyboxTextures[0].split('.')[-1]} files)")
+    else:
+        print("⚠ Skybox no cargado: faltan archivos")
+        
 except Exception as e:
-    print(f"No se pudo cargar el skybox: {e}")
+    print(f"⚠ Error al cargar el skybox: {e}")
+    import traceback
+    traceback.print_exc()
 
 # Cargar modelos
 try:
@@ -162,8 +276,30 @@ def apply_current_shader_to_all():
     else:
         print("Error al compilar el shader")
 
-# Compilar y aplicar el shader inicial
-apply_current_shader_to_all()
+# ASIGNAR SHADERS DIFERENTES A CADA MODELO
+print("\n=== ASIGNANDO SHADERS ÚNICOS A CADA MODELO ===")
+# Definir qué shader usar para cada modelo
+model_shader_assignments = [
+    0,  # Creeper -> Fresh Shader
+    1,  # Pickaxe -> Toon Shader
+    8,  # Espada -> Wave Effect
+    4,  # Balde -> Neon Effect
+    14, # Plano -> Fire Effect
+]
+
+for i, model in enumerate(rend.scene):
+    if i < len(model_shader_assignments):
+        shader_idx = model_shader_assignments[i]
+        vs, fs = shader_pairs[shader_idx][1:3]
+        prog = rend.CompileProgram(vs, fs)
+        
+        if prog is not None:
+            model.shaderProgram = prog
+            print(f"Modelo {i} ({model.__class__.__name__}): {shader_pairs[shader_idx][0]}")
+        else:
+            print(f"Error al compilar shader para modelo {i}")
+
+print("=== ASIGNACIÓN COMPLETADA ===\n")
 
 # Variables de control
 modelIndex = 0
@@ -171,6 +307,9 @@ postProcessIndex = 0
 showAll = True
 camAngle = 0
 cameraOrbitDistance = 8.0
+showMenu = True  # Variable para mostrar/ocultar el menú
+frameCount = 0
+lastInfoUpdate = 0
 
 # Parámetros específicos para shaders
 waveAmplitude = 0.5
@@ -217,6 +356,9 @@ def show_help():
     print("U/I: Disminuir/Aumentar factor de explosión (para explode shader)")
     print("O/P: Disminuir/Aumentar intensidad de pulso/ruido")
     print("K/L: Disminuir/Aumentar tamaño de píxel (para shader pixelate)")
+    print("I: Mostrar información en tiempo real en consola")
+    print("Y: Pausar/Reanudar música")
+    print("+/-: Aumentar/Disminuir volumen")
     print("ESC: Salir")
     print("H: Mostrar esta ayuda")
     print("\nShaders disponibles:")
@@ -256,6 +398,45 @@ while isRunning:
             if event.key == pygame.K_h:
                 show_help()
             
+            # Mostrar información en consola con I
+            if event.key == pygame.K_i:
+                showMenu = not showMenu
+                if showMenu:
+                    print("\n" + "="*60)
+                    print("INFORMACIÓN DEL DIORAMA EN TIEMPO REAL ACTIVADA")
+                    print("="*60)
+                else:
+                    print("\n" + "="*60)
+                    print("INFORMACIÓN EN TIEMPO REAL DESACTIVADA")
+                    print("="*60 + "\n")
+            
+            # Pausar/Reanudar música con Y
+            if event.key == pygame.K_y and musicPlaying:
+                if musicPaused:
+                    pygame.mixer.music.unpause()
+                    musicPaused = False
+                    print("♪ Música reanudada")
+                else:
+                    pygame.mixer.music.pause()
+                    musicPaused = True
+                    print("♪ Música pausada")
+            
+            # Aumentar volumen con +
+            if event.key == pygame.K_PLUS or event.key == pygame.K_EQUALS:
+                if musicPlaying:
+                    current_vol = pygame.mixer.music.get_volume()
+                    new_vol = min(1.0, current_vol + 0.1)
+                    pygame.mixer.music.set_volume(new_vol)
+                    print(f"♪ Volumen: {int(new_vol * 100)}%")
+            
+            # Disminuir volumen con -
+            if event.key == pygame.K_MINUS:
+                if musicPlaying:
+                    current_vol = pygame.mixer.music.get_volume()
+                    new_vol = max(0.0, current_vol - 0.1)
+                    pygame.mixer.music.set_volume(new_vol)
+                    print(f"♪ Volumen: {int(new_vol * 100)}%")
+            
             # Alternar modo de líneas/relleno
             if event.key == pygame.K_f:
                 rend.ToggleFilledMode()
@@ -284,24 +465,36 @@ while isRunning:
                 camPos = glm.vec3(orbitCenter.x, orbitCenter.y, orbitCenter.z + cameraOrbitDistance)
                 rend.camera.position = camPos
                 rend.camera.LookAt(orbitCenter)
+                # Reproducir sonido del creeper
+                if 'cree' in soundEffects:
+                    soundEffects['cree'].play()
             if event.key == pygame.K_j and len(rend.scene) > 1:
                 modelIndex = 1
                 orbitCenter = rend.scene[modelIndex].position
                 camPos = glm.vec3(orbitCenter.x, orbitCenter.y, orbitCenter.z + cameraOrbitDistance)
                 rend.camera.position = camPos
                 rend.camera.LookAt(orbitCenter)
+                # Reproducir sonido del pickaxe
+                if 'pick' in soundEffects:
+                    soundEffects['pick'].play()
             if event.key == pygame.K_k and len(rend.scene) > 2:
                 modelIndex = 2
                 orbitCenter = rend.scene[modelIndex].position
                 camPos = glm.vec3(orbitCenter.x, orbitCenter.y, orbitCenter.z + cameraOrbitDistance)
                 rend.camera.position = camPos
                 rend.camera.LookAt(orbitCenter)
+                # Reproducir sonido de la espada
+                if 'sword' in soundEffects:
+                    soundEffects['sword'].play()
             if event.key == pygame.K_l and len(rend.scene) > 3:
                 modelIndex = 3
                 orbitCenter = rend.scene[modelIndex].position
                 camPos = glm.vec3(orbitCenter.x, orbitCenter.y, orbitCenter.z + cameraOrbitDistance)
                 rend.camera.position = camPos
                 rend.camera.LookAt(orbitCenter)
+                # Reproducir sonido del balde
+                if 'buck' in soundEffects:
+                    soundEffects['buck'].play()
             
             # Cambiar post-procesado
             if event.key == pygame.K_TAB:
@@ -356,6 +549,10 @@ while isRunning:
                 if not showAll:
                     for i in range(len(rend.scene)):
                         rend.scene[i].visible = (i == modelIndex)
+                # Reproducir sonido del modelo seleccionado
+                sound_names = ['cree', 'pick', 'sword', 'buck', 'plane']
+                if modelIndex < len(sound_names) and sound_names[modelIndex] in soundEffects:
+                    soundEffects[sound_names[modelIndex]].play()
         
         elif event.type == pygame.MOUSEWHEEL:
             # Zoom con rueda del mouse
@@ -486,6 +683,38 @@ while isRunning:
     
     # Renderizar la escena
     rend.Render()
+    
+    # Mostrar información en el título de la ventana
+    if showMenu:
+        fps = int(clock.get_fps())
+        post_names = ["None", "GrayScale", "Negative", "Hurt", "Depth", "Fog", "DoF", "Edge", "Outline"]
+        model_names = ["Creeper", "Pickaxe", "Sword", "Bucket", "Plane"]
+        
+        title = f"Diorama OpenGL | FPS: {fps} | Model: {model_names[modelIndex]} | Post-FX: {post_names[postProcessIndex]} | [I] Info [H] Help"
+        pygame.display.set_caption(title)
+    else:
+        pygame.display.set_caption("Diorama OpenGL - Proyecto 3 | [I] Show Info")
+    
+    # Mostrar información detallada en consola cada segundo
+    frameCount += 1
+    if rend.elapsedTime - lastInfoUpdate >= 2.0:
+        lastInfoUpdate = rend.elapsedTime
+        if showMenu:
+            fps = int(clock.get_fps())
+            post_names = ["None", "GrayScale", "Negative", "Hurt", "Depth", "Fog", "DoF", "Edge", "Outline"]
+            model_names = ["Creeper", "Pickaxe", "Sword", "Bucket", "Plane"]
+            
+            print("\n" + "="*80)
+            print(f"  FPS: {fps} | Modelo Seleccionado: {model_names[modelIndex]} | Post-Proceso: {post_names[postProcessIndex]}")
+            print("  " + "-"*76)
+            print("  SHADERS ASIGNADOS:")
+            print("    • Creeper → Fresh Shader")
+            print("    • Pickaxe → Toon Shader")
+            print("    • Sword → Wave Effect")
+            print("    • Bucket → Neon Effect")
+            print("    • Plane → Fire Effect")
+            print("="*80)
+    
     pygame.display.flip()
 
 # Limpieza al salir

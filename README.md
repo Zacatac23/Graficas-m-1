@@ -75,7 +75,7 @@ La app incluye una colección de shaders. En mi ejecución se listaron los sigui
 14. Fire Effect (vertex y fragment avanzados)
 15. Ice Effect (vertex y fragment avanzados)
 
-Cada entrada combina un vertex shader y un fragment shader; algunos usan los "fresh" originales y combinan con fragment shaders avanzados.
+Cada entrada combina un vertex shader y un fragment shader; algunos usan los "fresh" originales y combinan con fragment shaders avanzados. par los shader despues del 9 presionar shift el primer numero y despues el segundo 
 
 ## Notas y solución de problemas
 - Si obtienes errores GL al asignar uniforms, puede ser porque no se llamó `glUseProgram(prog)` antes de `glUniform*`. El renderer fue actualizado para activar el programa antes de pasar uniforms específicos por-modelo.

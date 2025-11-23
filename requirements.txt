@@ -3,6 +3,7 @@ pygame==2.6.1
 PyOpenGL==3.1.10
 PyGLM
 Pillow
+numpy
 
 # Optional: if you prefer looser pins, install without exact versions:
-# pip install "pygame>=2.0" "PyOpenGL>=3.1" "PyGLM>=2.0" "Pillow>=9.0"
+# pip install "pygame>=2.0" "PyOpenGL>=3.1" "PyGLM>=2.0" "Pillow>=9.0" "numpy>=1.20"

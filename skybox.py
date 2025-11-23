@@ -101,15 +101,22 @@ class Skybox(object):
 		
 		for i in range(len(textureList)):
 			texture = pygame.image.load(textureList[i])
-			textureData = pygame.image.tostring(texture, "RGB", False)
+			
+			# Detectar si la imagen tiene canal alfa (PNG con transparencia)
+			if texture.get_alpha() or texture.get_flags() & pygame.SRCALPHA:
+				textureData = pygame.image.tostring(texture, "RGBA", False)
+				format = GL_RGBA
+			else:
+				textureData = pygame.image.tostring(texture, "RGB", False)
+				format = GL_RGB
 			
 			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
 						 0,
-						 GL_RGB,
+						 format,
 						 texture.get_width(),
 						 texture.get_height(),
 						 0,
-						 GL_RGB,
+						 format,
 						 GL_UNSIGNED_BYTE,
 						 textureData)
 			
@@ -133,7 +140,10 @@ class Skybox(object):
 			glUniformMatrix4fv( glGetUniformLocation(self.shaders, "projectionMatrix"),
 								1, GL_FALSE, glm.value_ptr( self.cameraRef.projectionMatrix) )
 		
+		# Deshabilitar escritura en el depth buffer
 		glDepthMask(GL_FALSE)
+		# Cambiar la función de profundidad para que el skybox siempre esté atrás
+		glDepthFunc(GL_LEQUAL)
 		
 		glBindTexture(GL_TEXTURE_CUBE_MAP, self.texture)
 		
@@ -158,5 +168,7 @@ class Skybox(object):
 		
 		glDisableVertexAttribArray(0)
 
+		# Restaurar configuración de profundidad
+		glDepthFunc(GL_LESS)
 		glDepthMask(GL_TRUE)
 		

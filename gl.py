@@ -10,7 +10,8 @@ class Renderer(object):
         self.screen = screen
         _,_, self.width, self.height = screen.get_rect()
         
-        glClearColor(0.2, 0.2, 0.2, 1.0)
+        # Color de fondo más oscuro para ver mejor el skybox
+        glClearColor(0.05, 0.05, 0.05, 1.0)
 
         glEnable(GL_DEPTH_TEST)
         glViewport(0,0, self.width, self.height)
